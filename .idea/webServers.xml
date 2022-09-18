@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="6379f86d-0582-4e73-8178-4a08650fe59f" name="css518">
+        <fileTransfer accessType="SFTP" host="in2.css518.cn" port="16200" sshConfigId="85d0040d-e405-4c34-9658-7d1ce51d1d22" sshConfig="root@in2.css518.cn:16200 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

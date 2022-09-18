@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="css518" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="css518">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/root/CCSG" local="$PROJECT_DIR$/CCSG" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@in2.css518.cn:16200 password">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/root/CCSG" local="$PROJECT_DIR$/CCSG" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>
