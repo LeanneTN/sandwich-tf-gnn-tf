@@ -272,9 +272,9 @@ class MultiHeadedAttention(nn.Module):
 
         covrage_vector = None
         if (self._coverage and attn_type == 'context') and step is not None:
-            covrage_vector = exp_score  # B x num_heads x 1 x key_len
+            coverage_vector = exp_score  # B x num_heads x 1 x key_len
 
-        return final_output, attn_per_head, covrage_vector
+        return final_output, attn_per_head, coverage_vector
 
     def update_dropout(self, dropout):
         self.dropout.p = dropout

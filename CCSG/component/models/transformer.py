@@ -95,8 +95,9 @@ class Embedder(nn.Module):
 
 
 class Encoder(nn.Module):
-    """"The module of Sequence Encoder"""
+    """The module of Sequence Encoder"""
 
+    # 为源代码序列编码的encoder（模型图左边的构件）
     def __init__(self,
                  args,
                  input_size):
@@ -327,6 +328,7 @@ class Transformer(nn.Module):
             'n_steps': 5,
         }
         # create graph encoder, sequence encoder(encoder), decoder,respectively
+        # 生成GGNN与 Transformer的Encoder和Decoder
         self.gnn = GGNN(gnn_args)
         self.encoder = Encoder(args, self.embedder.enc_input_size)
         self.decoder = Decoder(args, self.embedder.dec_input_size)

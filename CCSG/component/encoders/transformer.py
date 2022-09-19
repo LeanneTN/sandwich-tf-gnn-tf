@@ -44,6 +44,7 @@ class TransformerEncoderLayer(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.layer_norm = LayerNorm(d_model)
+        # 带有残差的全连接层
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff, dropout)
 
     def forward(self, inputs, mask):
@@ -105,6 +106,7 @@ class TransformerEncoder(EncoderBase):
             max_relative_positions = [max_relative_positions] * self.num_layers
         assert len(max_relative_positions) == self.num_layers
 
+        # 构建i层的encoder，每一个包括一个attention以及其他对数据的处理层
         self.layer = nn.ModuleList(
             [TransformerEncoderLayer(d_model,
                                      heads,
