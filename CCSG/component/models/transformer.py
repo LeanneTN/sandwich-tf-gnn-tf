@@ -23,21 +23,25 @@ class Embedder(nn.Module):
 
     def __init__(self, args):
         super(Embedder, self).__init__()
-        self.enc_input_size=args.emsize
-        self.dec_input_size=args.emsize
+        self.enc_input_size = args.emsize
+        self.dec_input_size = args.emsize
 
+        # 词嵌入
         self.word_embeddings = Embeddings(args.emsize,
-                                              args.vocab_size,
-                                              constants.PAD)
+                                          args.vocab_size,
+                                          constants.PAD)
+        # 类型嵌入
         self.type_embeddings = Embeddings(args.emsize,
-                                              args.type_vocab_size,
-                                              constants.PAD)
+                                          args.type_vocab_size,
+                                          constants.PAD)
+        # 属性嵌入
         self.attr_embeddings = Embeddings(args.emsize,
-                                              args.attr_vocab_size,
-                                              constants.PAD)
+                                          args.attr_vocab_size,
+                                          constants.PAD)
 
-
+        # 源代码词汇的位置的嵌入
         self.src_pos_emb = args.src_pos_emb
+        # 目标代码词汇的位置的嵌入
         self.tgt_pos_emb = args.tgt_pos_emb
         self.no_relative_pos = all(v == 0 for v in args.max_relative_pos)
 
@@ -51,7 +55,7 @@ class Embedder(nn.Module):
 
     def forward(self,
                 sequence,
-                mode='encoder',step=None):
+                mode='encoder', step=None):
 
         if mode == 'encoder':
             word_rep = self.word_embeddings(sequence.unsqueeze(2))
@@ -85,7 +89,7 @@ class Embedder(nn.Module):
         elif mode == 'type':
             word_rep = self.type_embeddings(sequence.unsqueeze(2))
         elif mode == 'attrs':
-            word_rep=self.attr_embeddings(sequence.unsqueeze(2))
+            word_rep = self.attr_embeddings(sequence.unsqueeze(2))
 
         else:
             raise ValueError('Unknown embedder mode!')
@@ -187,6 +191,7 @@ class Decoder(nn.Module):
         self.use_seq = args.use_seq
         self.use_gnn = args.use_gnn
         if self.split_decoder:
+            # 没有用该方法
             # Following (https://arxiv.org/pdf/1808.07913.pdf), we try to split decoder
             self.transformer_c = TransformerDecoder(
                 num_layers=args.nlayers,
@@ -218,6 +223,7 @@ class Decoder(nn.Module):
                 nn.ReLU()
             )
         else:
+            # decoder构建走该分支
             self.transformer = TransformerDecoder(
                 num_layers=args.nlayers,
                 d_model=self.input_size,
@@ -340,37 +346,40 @@ class Transformer(nn.Module):
 
         self._copy = args.copy_attn
         if self._copy:
+            # 全局注意力模型 waiting
             self.copy_attn = GlobalAttention(dim=self.decoder.input_size,
                                              attn_type=args.attn_type)
+            # 复制生成器
             self.copy_generator = CopyGenerator(self.decoder.input_size,
                                                 tgt_dict,
                                                 self.generator)
+            # 评价指标由复制生成器的指标来决定
             self.criterion = CopyGeneratorCriterion(vocab_size=len(tgt_dict),
                                                     force_copy=args.force_copy)
         else:
+            # 如果不使用复制策略，则由二次交叉熵来评估模型
             self.criterion = nn.CrossEntropyLoss(reduction='none')
 
         # if args.MTL:
         #     self.tokenQuantityRegressor = TokenQuantityRegressor(args)
         #     self.autoWeightedLoss = AutoWeightedLoss(2, args)
-        self.args=args
-        self.M_token=nn.Linear(args.emsize, args.emsize,bias=False)
-        self.M_type = nn.Linear(args.emsize, args.emsize,bias=False)
-        self.token_vocab=tgt_dict
+        self.args = args
+        self.M_token = nn.Linear(args.emsize, args.emsize, bias=False)
+        self.M_type = nn.Linear(args.emsize, args.emsize, bias=False)
+        self.token_vocab = tgt_dict
 
     def _run_forward_ml(self,
-                        data_tuple,mode):
+                        data_tuple, mode):
 
-
-        (data, (source_map, blank, fill)) =data_tuple
+        (data, (source_map, blank, fill)) = data_tuple
         (vec_type, vec_token, vec_src, vec_tgt, vec_attrs, vec_MASK), edge_metrix, (
             lengths_type, lengths_token, lengths_src, lengths_tgt, lengths_node
-        ), (src_vocabs, src_map, alignments)=data
+        ), (src_vocabs, src_map, alignments) = data
 
         src_rep = self.embedder(vec_src,
-                                 mode='encoder')
+                                mode='encoder')
 
-        batch_size=len(vec_MASK)
+        batch_size = len(vec_MASK)
 
         memory_bank, layer_wise_outputs = self.encoder(src_rep, lengths_src)  # B x seq_len x h
 
@@ -378,26 +387,25 @@ class Transformer(nn.Module):
         #     tarCode_len_labels = tarCode_len.to(torch.float32)
         #     quantity_out, mse_loss = self.tokenQuantityRegressor(memory_bank, tarCode_len_labels)
 
-        vec_full_type=torch.zeros(size=vec_attrs.shape,dtype=torch.long,device=vec_attrs.device)
+        vec_full_type = torch.zeros(size=vec_attrs.shape, dtype=torch.long, device=vec_attrs.device)
 
-        vec_full_token=torch.zeros(size=vec_attrs.shape,dtype=torch.long,device=vec_attrs.device)
+        vec_full_token = torch.zeros(size=vec_attrs.shape, dtype=torch.long, device=vec_attrs.device)
         for idx in range(len(lengths_token)):
-            l_type=lengths_type[idx]
-            l_token=lengths_token[idx]
+            l_type = lengths_type[idx]
+            l_token = lengths_token[idx]
             vec_full_type[idx].scatter_(0, torch.arange(0, l_type, device=vec_type.device, dtype=torch.int64),
-                                         vec_type[idx])
-            vec_full_token[idx].scatter_(0,torch.arange(l_type,l_type+l_token,device=vec_token.device,dtype=torch.int64),vec_token[idx])
+                                        vec_type[idx])
+            vec_full_token[idx].scatter_(0, torch.arange(l_type, l_type + l_token, device=vec_token.device,
+                                                         dtype=torch.int64), vec_token[idx])
 
-        type_rep=self.embedder(vec_full_type,
+        type_rep = self.embedder(vec_full_type,
                                  mode='type')
-        token_rep=self.embedder(vec_full_token,
-                                 mode='token')
-        attr_rep=self.embedder(vec_attrs,
+        token_rep = self.embedder(vec_full_token,
+                                  mode='token')
+        attr_rep = self.embedder(vec_attrs,
                                  mode='attrs')
 
-        node_val=self.M_type(type_rep)+self.M_token(token_rep)
-
-
+        node_val = self.M_type(type_rep) + self.M_token(token_rep)
 
         gnn_output = self.gnn(node_val, edge_metrix)
 
@@ -438,9 +446,7 @@ class Transformer(nn.Module):
                                     mode='decoder')
         tarCode_pad_mask = ~sequence_mask(lengths_tgt, max_len=tarCode_emb.size(1))
 
-
         enc_outputs = layer_wise_outputs if self.layer_wise_attn else memory_bank
-
 
         layer_wise_dec_out, attns = self.decoder(enc_outputs,
                                                  lengths_src,
@@ -492,7 +498,7 @@ class Transformer(nn.Module):
         # loss['coefs_final'] = coefs_final
         return loss, attns
 
-    def forward(self,data_tuple):
+    def forward(self, data_tuple):
         """
         Input:
             - code_word_rep: ``(batch_size, max_doc_len)``
@@ -506,10 +512,10 @@ class Transformer(nn.Module):
             - ``(batch_size, P_LEN)``, ``(batch_size, P_LEN)``
         """
         if self.training:
-            return self._run_forward_ml(data_tuple,mode="train")
+            return self._run_forward_ml(data_tuple, mode="train")
 
         else:
-            return self._run_forward_ml(data_tuple,mode="test")
+            return self._run_forward_ml(data_tuple, mode="test")
 
     def __tens2sent(self,
                     t,
@@ -539,7 +545,6 @@ class Transformer(nn.Module):
             if use_cuda:
                 tgt_words = tgt_words.cuda()
             tgt_words = tgt_words.expand(batch_size).unsqueeze(1)  # B x 1
-
 
         dec_preds = []
         copy_info = []
