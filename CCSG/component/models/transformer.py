@@ -371,6 +371,7 @@ class Transformer(nn.Module):
     def _run_forward_ml(self,
                         data_tuple, mode):
 
+        # data的形式? data_tuple的形式?
         (data, (source_map, blank, fill)) = data_tuple
         (vec_type, vec_token, vec_src, vec_tgt, vec_attrs, vec_MASK), edge_metrix, (
             lengths_type, lengths_token, lengths_src, lengths_tgt, lengths_node
@@ -381,6 +382,7 @@ class Transformer(nn.Module):
 
         batch_size = len(vec_MASK)
 
+        # 前向传播encoder
         memory_bank, layer_wise_outputs = self.encoder(src_rep, lengths_src)  # B x seq_len x h
 
         # if self.MTL:
@@ -390,14 +392,17 @@ class Transformer(nn.Module):
         vec_full_type = torch.zeros(size=vec_attrs.shape, dtype=torch.long, device=vec_attrs.device)
 
         vec_full_token = torch.zeros(size=vec_attrs.shape, dtype=torch.long, device=vec_attrs.device)
+        # 遍历列表中的每一个token
         for idx in range(len(lengths_token)):
             l_type = lengths_type[idx]
             l_token = lengths_token[idx]
+            # scatter函数按照index和dim参数给出的条件，将原tensor按照条件放到新的tensor里
             vec_full_type[idx].scatter_(0, torch.arange(0, l_type, device=vec_type.device, dtype=torch.int64),
                                         vec_type[idx])
             vec_full_token[idx].scatter_(0, torch.arange(l_type, l_type + l_token, device=vec_token.device,
                                                          dtype=torch.int64), vec_token[idx])
 
+        # 将相关的类型数据和token数据转换为嵌入数据
         type_rep = self.embedder(vec_full_type,
                                  mode='type')
         token_rep = self.embedder(vec_full_token,
@@ -405,8 +410,10 @@ class Transformer(nn.Module):
         attr_rep = self.embedder(vec_attrs,
                                  mode='attrs')
 
+        # 将类型与token的嵌入向量相加
         node_val = self.M_type(type_rep) + self.M_token(token_rep)
 
+        # gnn运行后的结果
         gnn_output = self.gnn(node_val, edge_metrix)
 
         gnn = gnn_output
@@ -429,6 +436,7 @@ class Transformer(nn.Module):
             params['node_len'] = lengths_node
 
             dec_preds, attentions, copy_info, _ = self.__generate_sequence(params, choice='greedy')
+            # 将dec_preds和copy_info中的张量进行拼接操作：dim=1时，张量以行的形式插入到前面张量的下方
             dec_preds = torch.stack(dec_preds, dim=1)
             copy_info = torch.stack(copy_info, dim=1) if copy_info else None
             # attentions: batch_size x tgt_len x num_heads x src_len
@@ -442,8 +450,11 @@ class Transformer(nn.Module):
 
         # todo input gnnencoder
 
+        # test模式之外的forward
+        # 目标代码的图嵌入值
         tarCode_emb = self.embedder(vec_tgt,
                                     mode='decoder')
+        # sequence_mask：根据生成的嵌入值序列长度生成一个布尔值的mask
         tarCode_pad_mask = ~sequence_mask(lengths_tgt, max_len=tarCode_emb.size(1))
 
         enc_outputs = layer_wise_outputs if self.layer_wise_attn else memory_bank
@@ -536,7 +547,9 @@ class Transformer(nn.Module):
                             params,
                             choice='greedy',
                             tgt_words=None):
-
+        """
+        用于生成序列?
+        """
         batch_size = params['memory_bank'].size(0)
         use_cuda = params['memory_bank'].is_cuda
 
