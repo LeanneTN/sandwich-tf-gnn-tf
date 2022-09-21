@@ -40,10 +40,10 @@ class TransformerDecoderLayer(nn.Module):
             max_relative_positions=max_relative_positions)
         self.layer_norm = LayerNorm(d_model)
 
-        self.context_attn = MultiHeadedAttention(
-            heads, d_model, d_k, d_v, dropout=dropout,
-            coverage=coverage_attn)
-        self.layer_norm_2 = LayerNorm(d_model)
+        # self.context_attn = MultiHeadedAttention(
+        #     heads, d_model, d_k, d_v, dropout=dropout,
+        #     coverage=coverage_attn)
+        # self.layer_norm_2 = LayerNorm(d_model)
 
         self.gnn_attn = MultiHeadedAttention(
             heads, d_model, d_k, d_v, dropout=dropout,
@@ -87,24 +87,23 @@ class TransformerDecoderLayer(nn.Module):
             future_mask = future_mask.triu_(1).view(1, tgt_len, tgt_len)
             dec_mask = torch.gt(tgt_pad_mask + future_mask, 0)
 
-        query, _, _ = self.attention(inputs,
-                                     inputs,
-                                     inputs,
-                                     mask=dec_mask,
-                                     layer_cache=layer_cache,
-                                     attn_type="self")
-        query_norm = self.layer_norm(self.drop(query) + inputs)
+        # query, _, _ = self.attention(inputs,
+        #                              inputs,
+        #                              inputs,
+        #                              mask=dec_mask,
+        #                              layer_cache=layer_cache,
+        #                              attn_type="self")
+        # query_norm = self.layer_norm(self.drop(query) + inputs)
 
         if gnn is not None:
             gnn_out, attn_of_gnn, _ = self.gnn_attn(gnn,
                                                     gnn,
-                                                    query_norm,
                                                     mask=node_pad_mask,
                                                     layer_cache=layer_cache,
                                                     attn_type="gnn",
                                                     step=step,
                                                     coverage=coverage)
-            query_norm = self.layer_norm_3(self.drop(gnn_out) + query_norm)
+            query_norm = self.layer_norm_3(self.drop(gnn_out))
 
         if memory_bank is not None:
             mid, attn, coverage = self.context_attn(memory_bank,

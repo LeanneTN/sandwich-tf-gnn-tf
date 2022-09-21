@@ -148,50 +148,17 @@ class Decoder(nn.Module):
         self.split_decoder = args.split_decoder and args.copy_attn
         self.use_seq = args.use_seq
         self.use_gnn = args.use_gnn
-        if self.split_decoder:
-            # 没有用该方法
-            # Following (https://arxiv.org/pdf/1808.07913.pdf), we try to split decoder
-            self.transformer_c = TransformerDecoder(
-                num_layers=args.nlayers,
-                d_model=self.input_size,
-                heads=args.num_head,
-                d_k=args.d_k,
-                d_v=args.d_v,
-                d_ff=args.d_ff,
-                coverage_attn=args.coverage_attn,
-                dropout=args.trans_drop
-            )
-            self.transformer_d = TransformerDecoder(
-                num_layers=args.nlayers,
-                d_model=self.input_size,
-                heads=args.num_head,
-                d_k=args.d_k,
-                d_v=args.d_v,
-                d_ff=args.d_ff,
-                dropout=args.trans_drop
-            )
 
-            # To accomplish eq. 19 - 21 from `https://arxiv.org/pdf/1808.07913.pdf`
-            self.fusion_sigmoid = nn.Sequential(
-                nn.Linear(self.input_size * 2, self.input_size),
-                nn.Sigmoid()
-            )
-            self.fusion_gate = nn.Sequential(
-                nn.Linear(self.input_size * 2, self.input_size),
-                nn.ReLU()
-            )
-        else:
-            # decoder构建走该分支
-            self.transformer = TransformerDecoder(
-                num_layers=args.nlayers,
-                d_model=self.input_size,
-                heads=args.num_head,
-                d_k=args.d_k,
-                d_v=args.d_v,
-                d_ff=args.d_ff,
-                coverage_attn=args.coverage_attn,
-                dropout=args.trans_drop
-            )
+        self.transformer = TransformerDecoder(
+            num_layers=args.nlayers,
+            d_model=self.input_size,
+            heads=args.num_head,
+            d_k=args.d_k,
+            d_v=args.d_v,
+            d_ff=args.d_ff,
+            coverage_attn=args.coverage_attn,
+            dropout=args.trans_drop
+        )
 
         if args.reload_decoder_state:
             state_dict = torch.load(
@@ -208,13 +175,7 @@ class Decoder(nn.Module):
     def init_decoder(self,
                      src_lens,
                      max_src_len, lengths_node=None, max_node_len=None):
-
-        if self.split_decoder:
-            state_c = self.transformer_c.init_state(src_lens, max_src_len)
-            state_d = self.transformer_d.init_state(src_lens, max_src_len)
-            return state_c, state_d
-        else:
-            return self.transformer.init_state(src_lens, max_src_len, lengths_node, max_node_len)
+        return self.transformer.init_state(src_lens, max_src_len, lengths_node, max_node_len)
 
     def decode(self,
                tgt_words,  # tgt_mask
@@ -225,29 +186,13 @@ class Decoder(nn.Module):
                step=None,
                layer_wise_coverage=None):
 
-        if self.split_decoder:
-            copier_out, attns = self.transformer_c(tgt_words,
-                                                   tgt_emb,
-                                                   memory_bank,
-                                                   state[0],
-                                                   step=step,
-                                                   layer_wise_coverage=layer_wise_coverage)
-            dec_out, _ = self.transformer_d(tgt_words,
-                                            tgt_emb,
-                                            memory_bank,
-                                            state[1],
-                                            step=step)
-            f_t = self.fusion_sigmoid(torch.cat([copier_out, dec_out], dim=-1))
-            gate_input = torch.cat([copier_out, torch.mul(f_t, dec_out)], dim=-1)
-            decoder_outputs = self.fusion_gate(gate_input)
-        else:
-            decoder_outputs, attns = self.transformer(tgt_words,
-                                                      tgt_emb,
-                                                      memory_bank if self.use_seq else None,
-                                                      state,
-                                                      gnn=gnn if self.use_gnn else None,
-                                                      step=step,
-                                                      layer_wise_coverage=layer_wise_coverage)
+        decoder_outputs, attns = self.transformer(tgt_words,
+                                                  tgt_emb,
+                                                  memory_bank if self.use_seq else None,
+                                                  state,
+                                                  gnn=gnn if self.use_gnn else None,
+                                                  step=step,
+                                                  layer_wise_coverage=layer_wise_coverage)
 
         return decoder_outputs, attns
 
@@ -320,9 +265,11 @@ class Transformer(nn.Module):
         self.M_type = nn.Linear(args.emsize, args.emsize, bias=False)
         self.token_vocab = tgt_dict
 
+    # todo: run forward ML function
     def _run_forward_ml(self,
                         data_tuple, mode):
 
+        return
 
     def forward(self, data_tuple):
         """

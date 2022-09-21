@@ -382,8 +382,7 @@ class Transformer(nn.Module):
 
         batch_size = len(vec_MASK)
 
-        # 前向传播encoder
-        memory_bank, layer_wise_outputs = self.encoder(src_rep, lengths_src)  # B x seq_len x h
+
 
         # if self.MTL:
         #     tarCode_len_labels = tarCode_len.to(torch.float32)
@@ -413,8 +412,11 @@ class Transformer(nn.Module):
         # 将类型与token的嵌入向量相加
         node_val = self.M_type(type_rep) + self.M_token(token_rep)
 
+        # 前向传播encoder
+        memory_bank, layer_wise_outputs = self.encoder(node_val, lengths_src)  # B x seq_len x h
+
         # gnn运行后的结果
-        gnn_output = self.gnn(node_val, edge_metrix)
+        gnn_output = self.gnn(memory_bank, edge_metrix)
 
         gnn = gnn_output
 
