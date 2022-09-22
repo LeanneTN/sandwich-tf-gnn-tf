@@ -218,12 +218,7 @@ class Decoder(nn.Module):
                      src_lens,
                      max_src_len, lengths_node=None, max_node_len=None):
 
-        if self.split_decoder:
-            state_c = self.transformer_c.init_state(src_lens, max_src_len)
-            state_d = self.transformer_d.init_state(src_lens, max_src_len)
-            return state_c, state_d
-        else:
-            return self.transformer.init_state(src_lens, max_src_len, lengths_node, max_node_len)
+        return self.transformer.init_state(src_lens, max_src_len, lengths_node, max_node_len)
 
     def decode(self,
                tgt_words,  # tgt_mask
@@ -234,9 +229,10 @@ class Decoder(nn.Module):
                step=None,
                layer_wise_coverage=None):
 
+        # change memory_bank if self.use_seq else None into None
         decoder_outputs, attns = self.transformer(tgt_words,
                                                   tgt_emb,
-                                                  memory_bank if self.use_seq else None,
+                                                  None,
                                                   state,
                                                   gnn=gnn if self.use_gnn else None,
                                                   step=step,
@@ -368,7 +364,7 @@ class Transformer(nn.Module):
         gnn_output = self.gnn(memory_bank, edge_metrix)
 
         gnn = gnn_output
-
+        # 将GNN的output放入解码
         if mode == "test":
             params = dict()
             params['memory_bank'] = memory_bank
@@ -386,6 +382,10 @@ class Transformer(nn.Module):
             params['gnn'] = gnn
             params['node_len'] = lengths_node
 
+            """
+            将decoder.decode进行修改，把memory_bank改成None，只保留GNN
+            统一把GNN输进去，decoder部分也不需要把GNN输入
+            """
             dec_preds, attentions, copy_info, _ = self.__generate_sequence(params, choice='greedy')
             # 将dec_preds和copy_info中的张量进行拼接操作：dim=1时，张量以行的形式插入到前面张量的下方
             dec_preds = torch.stack(dec_preds, dim=1)
@@ -502,9 +502,11 @@ class Transformer(nn.Module):
         用于生成序列?
         """
         batch_size = params['memory_bank'].size(0)
-        use_cuda = params['memory_bank'].is_cuda
+        # use_cuda = params['memory_bank'].is_cuda
+        use_cuda = True
 
         if tgt_words is None:
+            # 在目标单词为为空的时候，将目标单词替换为含bos的longTensor类型
             tgt_words = torch.LongTensor([constants.BOS])
             if use_cuda:
                 tgt_words = tgt_words.cuda()
@@ -519,14 +521,21 @@ class Transformer(nn.Module):
         lengths_node = params['node_len']
         gnn = params['gnn']
 
+        # 如果memoryBank是list，取其第0位的shape的第一位长度作为max_mem_len
+        # 否则取memoryBank的shape的第一位
         max_mem_len = params['memory_bank'][0].shape[1] \
             if isinstance(params['memory_bank'], list) else params['memory_bank'].shape[1]
 
+        # 与上面的方法原理相同
         max_node_len = params['gnn'][0].shape[1] \
             if isinstance(params['gnn'], list) else params['gnn'].shape[1]
+        # 定义新的decoder并进行decoder的状态初始化
+        # max_mem_len作为init_state里的src_max_len项
         dec_states = self.decoder.init_decoder(params['src_len'], max_mem_len, lengths_node, max_node_len)
 
         attns = {"coverage": None}
+        # layer_wise_attn存在的话enc_outputs用它，否则用memoryBank
+        # enc_outputs可以不需要?
         enc_outputs = params['layer_wise_outputs'] if self.layer_wise_attn \
             else params['memory_bank']
 
@@ -537,6 +546,7 @@ class Transformer(nn.Module):
                                 step=idx)
 
             tgt_pad_mask = tgt_words.data.eq(constants.PAD)
+            # change enc_outputs into None
             layer_wise_dec_out, attns = self.decoder.decode(tgt_pad_mask,
                                                             tgt,
                                                             enc_outputs,
@@ -544,6 +554,7 @@ class Transformer(nn.Module):
                                                             gnn=gnn,
                                                             step=idx,
                                                             layer_wise_coverage=attns['coverage'])
+            # 得到decoder的输出
             decoder_outputs = layer_wise_dec_out[-1]
             acc_dec_outs.append(decoder_outputs.squeeze(1))
             if self._copy:
@@ -629,7 +640,8 @@ class Transformer(nn.Module):
         gnn = gnn_output
 
         params = dict()
-        params['memory_bank'] = memory_bank
+        # change memory_bank into None
+        params['memory_bank'] = None
         params['layer_wise_outputs'] = layer_wise_outputs
         params['src_len'] = code_len
         params['source_vocab'] = kwargs['source_vocab']

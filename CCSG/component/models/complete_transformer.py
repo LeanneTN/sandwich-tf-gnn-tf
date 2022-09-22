@@ -316,6 +316,7 @@ class Transformer(nn.Module):
         use_cuda = params['memory_bank'].is_cuda
 
         if tgt_words is None:
+            # 在目标单词为为空的时候，将目标单词替换为含bos的longTensor类型
             tgt_words = torch.LongTensor([constants.BOS])
             if use_cuda:
                 tgt_words = tgt_words.cuda()
@@ -330,14 +331,21 @@ class Transformer(nn.Module):
         lengths_node = params['node_len']
         gnn = params['gnn']
 
+        # 如果memoryBank是list，取其第0位的shape的第一位长度作为max_mem_len
+        # 否则取memoryBank的shape的第一位
         max_mem_len = params['memory_bank'][0].shape[1] \
             if isinstance(params['memory_bank'], list) else params['memory_bank'].shape[1]
 
+        # 与上面的方法原理相同
         max_node_len = params['gnn'][0].shape[1] \
             if isinstance(params['gnn'], list) else params['gnn'].shape[1]
+        # 定义新的decoder并进行decoder的状态初始化
+        # max_mem_len作为init_state里的src_max_len项
         dec_states = self.decoder.init_decoder(params['src_len'], max_mem_len, lengths_node, max_node_len)
 
         attns = {"coverage": None}
+        # layer_wise_attn存在的话enc_outputs用它，否则用memoryBank
+        # enc_outputs可以不需要?
         enc_outputs = params['layer_wise_outputs'] if self.layer_wise_attn \
             else params['memory_bank']
 

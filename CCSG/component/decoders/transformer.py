@@ -117,16 +117,16 @@ class TransformerDecoderLayer(nn.Module):
         #     query_norm = self.layer_norm_2(self.drop(mid) + query_norm)
         # query_norm = self.layer_norm_2(self.drop(mid) + query_norm)
 
-        if gnn is not None:
-           gnn_out, _, _ = self.gnn_attn(gnn,
-                                         gnn,
-                                         query_norm,
-                                         mask=None,
-                                         layer_cache=layer_cache,
-                                         attn_type="gnn",
-                                         step=step,
-                                         coverage=coverage)
-           mid_norm = self.layer_norm_3(self.drop(gnn_out) + query_norm)
+        # if gnn is not None:
+        #    gnn_out, _, _ = self.gnn_attn(gnn,
+        #                                  gnn,
+        #                                  query_norm,
+        #                                  mask=None,
+        #                                  layer_cache=layer_cache,
+        #                                  attn_type="gnn",
+        #                                  step=step,
+        #                                  coverage=coverage)
+        #    mid_norm = self.layer_norm_3(self.drop(gnn_out) + query_norm)
 
         output = self.feed_forward(query_norm)
         if attn == None:
@@ -221,7 +221,7 @@ class TransformerDecoder(DecoderBase):
 
         assert emb.dim() == 3  # batch x len x embedding_dim
         output = emb
-
+        # 生成一个src_len长度的mask
         src_pad_mask = ~sequence_mask(state["src_len"],
                                       max_len=state["src_max_len"]).unsqueeze(1)
 
