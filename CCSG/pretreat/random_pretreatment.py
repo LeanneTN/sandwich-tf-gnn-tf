@@ -419,7 +419,7 @@ def pretreat(file_dir,output_dir="",dict_dir=""):
 
 
 # text="class test{public void tuneEnd(Tune tune, AbcNode abcRoot) { a.b().c();} } "
-# tree=javalang.parse.parse(text)
+# tree=myJavalang.parse.parse(text)
 
 
 parser = argparse.ArgumentParser(description='Jenkins pipline parameters')

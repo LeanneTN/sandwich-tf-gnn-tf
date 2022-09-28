@@ -1,24 +1,24 @@
 import sys
 sys.path.insert(0,"..")
-import javalang
+import myJavalang
 
-import javalang.tokenizer as tokenizer
+import myJavalang.tokenizer as tokenizer
 import re
-from javalang.parser import Parser
+from myJavalang.parser import Parser
 replace_type=[tokenizer.Null,tokenizer.String,tokenizer.Identifier,tokenizer.Boolean,tokenizer.FloatingPoint,tokenizer.Integer,tokenizer.DecimalInteger]
 not_replace_type=[tokenizer.Operator,tokenizer.Modifier,tokenizer.Separator
                   ,tokenizer.Annotation
                   ]
-import javalang.tree
+import myJavalang.tree
 import random
 import pickle
 import argparse
 
-main_type_in=[javalang.tree.IfStatement,javalang.tree.ForStatement,javalang.tree.MethodInvocation,
-              javalang.tree.FormalParameter,javalang.tree.CatchClauseParameter,javalang.tree.SuperMethodInvocation,
-              javalang.tree.SwitchStatement,javalang.tree.SynchronizedStatement,javalang.tree.ClassCreator,
-              javalang.tree.WhileStatement,javalang.tree.DoStatement,javalang.tree.ThrowStatement,
-              javalang.tree.SuperConstructorInvocation
+main_type_in=[myJavalang.tree.IfStatement,myJavalang.tree.ForStatement,myJavalang.tree.MethodInvocation,
+              myJavalang.tree.FormalParameter,myJavalang.tree.CatchClauseParameter,myJavalang.tree.SuperMethodInvocation,
+              myJavalang.tree.SwitchStatement,myJavalang.tree.SynchronizedStatement,myJavalang.tree.ClassCreator,
+              myJavalang.tree.WhileStatement,myJavalang.tree.DoStatement,myJavalang.tree.ThrowStatement,
+              myJavalang.tree.SuperConstructorInvocation
               ]
 sep_skip=[".",",",";"]
 sep_pair={
@@ -119,15 +119,15 @@ def try_parse_tokens(tks,mask_id,mask_tar):
         parser = Parser(tks)
         res = parser.parse()
         return res
-    except javalang.parser.JavaSyntaxError as e:
-        if e.want==javalang.tokenizer.Identifier:
+    except myJavalang.parser.JavaSyntaxError as e:
+        if e.want==myJavalang.tokenizer.Identifier:
             tks.insert(mask_id+1,tokenizer.Identifier("MASK",mask_tar.position))
             return try_parse_tokens(tks,mask_id+1,mask_tar)
         elif e.want == ".":
-            if isinstance(e.at,javalang.tokenizer.Operator):
+            if isinstance(e.at,myJavalang.tokenizer.Operator):
                 tks.insert(mask_id, tokenizer.Separator(";", position=mask_tar.position))
                 return try_parse_tokens(tks,mask_id+1,mask_tar)
-            elif isinstance(e.at,javalang.tokenizer.Identifier):
+            elif isinstance(e.at,myJavalang.tokenizer.Identifier):
                 tks.insert(mask_id + 1, tokenizer.Separator(";", position=mask_tar.position))
                 tks.insert(mask_id, tokenizer.Separator(";", position=mask_tar.position))
                 return try_parse_tokens(tks, mask_id + 1, mask_tar)
@@ -215,7 +215,7 @@ def parse(s,mask_part,between):
     res=parser.parse()
     return res
 
-def normal_parse(text_full,replacement,mask_text="MASK",tuple_id=-1):
+def normal_parse(text_full,replacement,mask_text="{MASK;}",tuple_id=-1):
     try:
         if tuple_id >0:
             r_tuple=replace_tuples[tuple_id]
@@ -227,12 +227,14 @@ def normal_parse(text_full,replacement,mask_text="MASK",tuple_id=-1):
         parser = Parser(tokens)
         res=parser.parse()
     except Exception as e:
-        if mask_text=="MASK":
-            return normal_parse(text_full,replacement,"MASK MASK",tuple_id)
-        elif mask_text=="MASK MASK":
-            return normal_parse(text_full, replacement, "MASK;MASK;MASK",tuple_id)
+        if mask_text=="{MASK;}":
+            return normal_parse(text_full,replacement,"{MASK}",tuple_id)
+        elif mask_text=="{MASK}":
+            return normal_parse(text_full,replacement,"{MASK(){}}", tuple_id)
+        elif mask_text=="{MASK(){}}":
+            return normal_parse(text_full, replacement, "MASK",tuple_id)
         elif tuple_id < len(replace_tuples) - 1:
-            return normal_parse(text_full, replacement, "MASK", tuple_id+1)
+            return normal_parse(text_full, replacement, "{MASK;}", tuple_id+1)
         else:
             raise e
     return res,text_rep
@@ -341,7 +343,7 @@ def deep_in_tree(tree,elements,between,parent=None,pos=-1,belong=-1,field=None):
     elif tree is None:
         return None
     else:
-        if isinstance(tree, javalang.tree.This):
+        if isinstance(tree, myJavalang.tree.This):
             if between[0] <= pos < between[1]:
                 value = "MASK"
             else:
@@ -502,7 +504,7 @@ def pretreat(file_dir,output_dir="",dict_dir=""):
     while text:
         ida = ida+1
         print(ida)
-        # if ida <2581:
+        # if ida <8681:
         #     text = input_file.readline()
         #     continue
         # if ida in [47757]:
@@ -551,7 +553,7 @@ def pretreat(file_dir,output_dir="",dict_dir=""):
 
 
 # text="class test{public void tuneEnd(Tune tune, AbcNode abcRoot) { a.b().c();} } "
-# tree=javalang.parse.parse(text)
+# tree=myJavalang.parse.parse(text)
 
 
 parser = argparse.ArgumentParser(description='Jenkins pipline parameters')
