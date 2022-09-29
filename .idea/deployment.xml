@@ -16,6 +16,13 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="root@in2.css518.cn:16200 password (1)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/root/CCSG" local="$PROJECT_DIR$/CCSG" />
+          </mappings>
+        </serverdata>
+      </paths>
     </serverData>
     <option name="myAutoUpload" value="ALWAYS" />
   </component>
