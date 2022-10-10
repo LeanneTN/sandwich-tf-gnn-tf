@@ -9,7 +9,7 @@ from component.modules.char_embedding import CharEmbedding
 from component.modules.embeddings import Embeddings
 from component.modules.highway import Highway
 from component.encoders.transformer import TransformerEncoder
-from component.decoders.transformer import TransformerDecoder
+from component.decoders.transformer_great import TransformerDecoder
 from component.inputters import constants
 from component.modules.global_attention import GlobalAttention
 from component.modules.copy_generator import CopyGenerator, CopyGeneratorCriterion
@@ -282,7 +282,8 @@ class Transformer(nn.Module):
         }
         # create graph encoder, sequence encoder(encoder), decoder,respectively
         # 生成GGNN与 Transformer的Encoder和Decoder
-        self.gnn = GGNN(gnn_args)
+        # self.gnn = GGNN(gnn_args)
+        self.gnn = None
         self.encoder = Encoder(args, self.embedder.enc_input_size)
         self.decoder = Decoder(args, self.embedder.dec_input_size)
         self.layer_wise_attn = args.layer_wise_attn
