@@ -238,8 +238,7 @@ class Decoder(nn.Module):
                                                   state,
                                                   gnn=gnn if self.use_gnn else None,
                                                   step=step,
-                                                  layer_wise_coverage=layer_wise_coverage,
-                                                  edge_matrix=edge_matrix)
+                                                  layer_wise_coverage=layer_wise_coverage)
 
         return decoder_outputs, attns
 
@@ -248,8 +247,7 @@ class Decoder(nn.Module):
                 memory_len,  # code_len
                 tgt_pad_mask,  # tgt_pad_mask
                 tgt_emb,  # tgt_emb
-                gnn, lengths_node,
-                edge_matrix):
+                gnn, lengths_node):
 
         max_mem_len = memory_bank[0].shape[1] \
             if isinstance(memory_bank, list) else memory_bank.shape[1]
@@ -259,7 +257,7 @@ class Decoder(nn.Module):
         else:
             max_node_len = None
         state = self.init_decoder(memory_len, max_mem_len, lengths_node, max_node_len)
-        return self.decode(tgt_pad_mask, tgt_emb, memory_bank, state, gnn=gnn, edge_matrix=edge_matrix)
+        return self.decode(tgt_pad_mask, tgt_emb, memory_bank, state, gnn=gnn)
 
 
 class Transformer(nn.Module):
@@ -417,7 +415,7 @@ class Transformer(nn.Module):
         layer_wise_dec_out, attns = self.decoder(enc_outputs,
                                                  lengths_src,
                                                  tarCode_pad_mask,
-                                                 tarCode_emb, gnn, lengths_node, edge_matrix=edge_metrix)
+                                                 tarCode_emb, gnn, lengths_node)
 
         decoder_outputs = layer_wise_dec_out[-1]
 

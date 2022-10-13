@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from component.decoders.decoder import DecoderBase
-from component.modules.multi_head_attn_great import MultiHeadedAttention
+from component.modules.multi_head_attn import MultiHeadedAttention
 from component.modules.position_ffn import PositionwiseFeedForward
 from component.utils.misc import sequence_mask
 from component.modules.util_class import LayerNorm
@@ -62,8 +62,7 @@ class TransformerDecoderLayer(nn.Module):
                 node_pad_mask=None,
                 layer_cache=None,
                 step=None,
-                coverage=None,
-                edge_matrix=None
+                coverage=None
                 ):
         """
         Args:
@@ -77,8 +76,8 @@ class TransformerDecoderLayer(nn.Module):
             * attn ``(batch_size, 1, src_len)``
         """
         dec_mask = None
-        attn = None
-        attn_of_gnn = None
+        attn=None
+        attn_of_gnn=None
         if step is None:
             tgt_len = tgt_pad_mask.size(-1)
             future_mask = torch.ones(
@@ -93,19 +92,18 @@ class TransformerDecoderLayer(nn.Module):
                                      inputs,
                                      mask=dec_mask,
                                      layer_cache=layer_cache,
-                                     attn_type="self",
-                                     edge_matrix=edge_matrix)
+                                     attn_type="self")
         query_norm = self.layer_norm(self.drop(query) + inputs)
 
         if gnn is not None:
             gnn_out, attn_of_gnn, _ = self.gnn_attn(gnn,
                                                     gnn,
+                                                    query,
                                                     mask=node_pad_mask,
                                                     layer_cache=layer_cache,
                                                     attn_type="gnn",
                                                     step=step,
-                                                    coverage=coverage,
-                                                    edge_matrix=edge_matrix)
+                                                    coverage=coverage)
             query_norm = self.layer_norm_3(self.drop(gnn_out))
 
         # if memory_bank is not None:
@@ -120,7 +118,7 @@ class TransformerDecoderLayer(nn.Module):
         #     query_norm = self.layer_norm_2(self.drop(mid) + query_norm)
         # query_norm = self.layer_norm_2(self.drop(mid) + query_norm)
 
-        # if gnn is not None:
+        #if gnn is not None:
         #    gnn_out, _, _ = self.gnn_attn(gnn,
         #                                  gnn,
         #                                  query_norm,
@@ -132,10 +130,10 @@ class TransformerDecoderLayer(nn.Module):
         #    mid_norm = self.layer_norm_3(self.drop(gnn_out) + query_norm)
 
         output = self.feed_forward(query_norm)
-        if attn == None:
-            attn = attn_of_gnn
-        if attn_of_gnn == None:
-            attn_of_gnn = attn
+        if attn==None:
+            attn=attn_of_gnn
+        if attn_of_gnn==None:
+            attn_of_gnn=attn
         return output, attn, coverage, attn_of_gnn
 
 
@@ -174,19 +172,16 @@ class TransformerDecoder(DecoderBase):
                  dropout=0.2,
                  max_relative_positions=0,
                  coverage_attn=False,
-                 use_gnn_attn=False,  # GNN point 3
-                 edge_matrix=None
+                 use_gnn_attn=False # GNN point 3
                  ):
         super(TransformerDecoder, self).__init__()
-        self.use_gnn_attn = use_gnn_attn
+        self.use_gnn_attn=use_gnn_attn
         self.num_layers = num_layers
         if isinstance(max_relative_positions, int):
             max_relative_positions = [max_relative_positions] * self.num_layers
         assert len(max_relative_positions) == self.num_layers
 
         self._coverage = coverage_attn
-        # i层transformer模型
-        # 每一层中有全局attention，context attention和gnn attention 以及对数据的其他处理的层
         self.layer = nn.ModuleList(
             [TransformerDecoderLayer(d_model,
                                      heads,
@@ -198,7 +193,7 @@ class TransformerDecoder(DecoderBase):
                                      coverage_attn=coverage_attn)
              for i in range(num_layers)])
 
-    def init_state(self, src_len, max_len, lengths_node=None, node_max_len=None):
+    def init_state(self, src_len, max_len, lengths_node=None,node_max_len=None):
         """Initialize decoder state."""
         state = dict()
         state["src_len"] = src_len  # [B]
@@ -219,35 +214,32 @@ class TransformerDecoder(DecoderBase):
                 state,
                 gnn=None,
                 step=None,
-                layer_wise_coverage=None,
-                edge_matrix=None):
+                layer_wise_coverage=None):
         if step == 0:
             self._init_cache(state)
 
         assert emb.dim() == 3  # batch x len x embedding_dim
         output = emb
-        # 生成一个src_len长度的mask
+
         src_pad_mask = ~sequence_mask(state["src_len"],
                                       max_len=state["src_max_len"]).unsqueeze(1)
 
         # node_pad_mask = None # use node_pad_mask will slightly improve performance
         node_pad_mask = ~sequence_mask(state["lengths_node"],
-                                       max_len=state["node_max_len"]).unsqueeze(1)
+                                      max_len=state["node_max_len"]).unsqueeze(1)
+
 
         tgt_pad_mask = tgt_pad_mask.unsqueeze(1)  # [B, 1, T_tgt]
 
         new_layer_wise_coverage = []
         representations = []
         std_attentions = []
-        gnn_attentions = []
-        # 对transformer模型中的每一层进行遍历
+        gnn_attentions=[]
         for i, layer in enumerate(self.layer):
             layer_cache = state["cache"]["layer_{}".format(i)] \
                 if step is not None else None
-            # 当memory_bank填充为一个列表时才将第i项赋给membank，否则将整个bank都赋值过去
             mem_bank = memory_bank[i] if isinstance(memory_bank, list) else memory_bank
-            # 得到每一层前向传播后的结果
-            output, attn, coverage, attn_of_gnn = layer(
+            output, attn, coverage,attn_of_gnn = layer(
                 output,
                 mem_bank,
                 src_pad_mask,
@@ -257,13 +249,11 @@ class TransformerDecoder(DecoderBase):
                 layer_cache=layer_cache,
                 step=step,
                 coverage=None if layer_wise_coverage is None
-                else layer_wise_coverage[i],
-                edge_matrix=edge_matrix
+                else layer_wise_coverage[i]
             )
             representations.append(output)
             std_attentions.append(attn)
             new_layer_wise_coverage.append(coverage)
-            # 如果模型中用到了gnn，则对gnn的attention进行保存
             if self.use_gnn_attn:
                 gnn_attentions.append(attn_of_gnn)
 
