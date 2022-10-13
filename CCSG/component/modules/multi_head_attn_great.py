@@ -50,12 +50,18 @@ class MultiHeadedAttention(nn.Module):
 
         self.head_count = head_count
         self.model_dim = model_dim
+        self.bias_dim = bias_dim
         self.d_k = d_k
         self.d_v = d_v
 
         self.key = nn.Linear(model_dim, head_count * self.d_k)
         self.query = nn.Linear(model_dim, head_count * self.d_k)
         self.value = nn.Linear(model_dim, head_count * self.d_v)
+        self.dim_per_head = model_dim // head_count
+
+        if bias_dim is not None:
+            self.bias_embs = nn.Linear(bias_dim, self.dim_per_head)
+            self.bias_scalar = nn.Linear(self.dim_per_head, 1)
 
         self.softmax = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(dropout)
@@ -74,7 +80,7 @@ class MultiHeadedAttention(nn.Module):
                 vocab_size, self.d_v)
 
     def forward(self, key, value, query, mask=None, layer_cache=None,
-                attn_type=None, step=None, coverage=None):
+                attn_type=None, step=None, coverage=None, edge_matrix=None):
         """
         Compute the context vector and the attention vectors.
         Args:
@@ -107,6 +113,7 @@ class MultiHeadedAttention(nn.Module):
             return x.transpose(1, 2).contiguous().view(batch_size, -1, head_count * dim)
 
         # 1) Project key, value, and query.
+        # steps to calculate k q v
         if layer_cache is not None:
             if attn_type == "self":
                 # 1) Project key, value, and query.
@@ -150,6 +157,7 @@ class MultiHeadedAttention(nn.Module):
             key = shape(self.key(key), self.d_k)
             value = shape(self.value(value), self.d_v)
             query = shape(self.query(query), self.d_k)
+        # finish calculate of q k v
 
         if self.max_relative_positions > 0 and attn_type == "self":
             key_len = key.size(2)
@@ -169,8 +177,30 @@ class MultiHeadedAttention(nn.Module):
 
         # 2) Calculate and scale scores.
         query = query / math.sqrt(self.d_k)
+        '_____________________________________________________________________________________________________________________'
+        # 将传入的边的邻接矩阵分开，并将每个初始化一个自训练变量填入，然后将其按照论文中的公式相加
+        bias_shape = [int(edge_matrix.shape[0]), int(edge_matrix.shape[1]), int(edge_matrix.shape[2]/6)]
+        e = torch.zeros(bias_shape)
+        if edge_matrix is not None:
+            edge_matrix_shape = edge_matrix.shape
+            num_of_each_edge = int(edge_matrix_shape[2] / 6)
+            edge_matrix_layers = []
+            for i in range(6):
+                edge_matrix_layers.append(edge_matrix[:, :, i * num_of_each_edge: (i + 1) * num_of_each_edge])
+                a = torch.nn.Parameter(torch.FloatTensor(edge_matrix_layers[i].shape))
+                m = torch.zeros_like(a)
+                edge_matrix_layers[i] = torch.where(edge_matrix_layers[i] == 1, a, m)
+                e += edge_matrix_layers[i]
+
         # batch x num_heads x query_len x key_len
+        # q_i * k_j --> (q_i + b_ij) * k_j --> q_i * k_j + b_ij * k_j
         query_key = torch.matmul(query, key.transpose(2, 3))
+        query_key_shape = query_key.shape
+        summed_key = torch.sum(key, dim=-1)
+        bias = torch.einsum('bqk,bhk->bhqk', e, summed_key)
+        query_key += bias
+
+        '____________________________________________________________________________________________'
 
         if self.max_relative_positions > 0 and attn_type == "self":
             scores = query_key + relative_matmul(query, relations_keys, True)
@@ -253,7 +283,7 @@ class MultiHeadedAttention(nn.Module):
         attn_per_head = [attn.squeeze(1)
                          for attn in attn.chunk(head_count, dim=1)]
 
-        covrage_vector = None
+        coverage_vector = None
         if (self._coverage and attn_type == 'context') and step is not None:
             coverage_vector = exp_score  # B x num_heads x 1 x key_len
 

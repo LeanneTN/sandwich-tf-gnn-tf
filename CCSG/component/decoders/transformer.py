@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from component.decoders.decoder import DecoderBase
-from component.modules.multi_head_attn import MultiHeadedAttention
+from component.modules.multi_head_attn_great import MultiHeadedAttention
 from component.modules.position_ffn import PositionwiseFeedForward
 from component.utils.misc import sequence_mask
 from component.modules.util_class import LayerNorm
@@ -62,7 +62,8 @@ class TransformerDecoderLayer(nn.Module):
                 node_pad_mask=None,
                 layer_cache=None,
                 step=None,
-                coverage=None
+                coverage=None,
+                edge_matrix=None
                 ):
         """
         Args:
@@ -92,7 +93,8 @@ class TransformerDecoderLayer(nn.Module):
                                      inputs,
                                      mask=dec_mask,
                                      layer_cache=layer_cache,
-                                     attn_type="self")
+                                     attn_type="self",
+                                     edge_matrix=edge_matrix)
         query_norm = self.layer_norm(self.drop(query) + inputs)
 
         if gnn is not None:
@@ -102,7 +104,8 @@ class TransformerDecoderLayer(nn.Module):
                                                     layer_cache=layer_cache,
                                                     attn_type="gnn",
                                                     step=step,
-                                                    coverage=coverage)
+                                                    coverage=coverage,
+                                                    edge_matrix=edge_matrix)
             query_norm = self.layer_norm_3(self.drop(gnn_out))
 
         # if memory_bank is not None:
@@ -171,7 +174,8 @@ class TransformerDecoder(DecoderBase):
                  dropout=0.2,
                  max_relative_positions=0,
                  coverage_attn=False,
-                 use_gnn_attn=False  # GNN point 3
+                 use_gnn_attn=False,  # GNN point 3
+                 edge_matrix=None
                  ):
         super(TransformerDecoder, self).__init__()
         self.use_gnn_attn = use_gnn_attn
@@ -215,7 +219,8 @@ class TransformerDecoder(DecoderBase):
                 state,
                 gnn=None,
                 step=None,
-                layer_wise_coverage=None):
+                layer_wise_coverage=None,
+                edge_matrix=None):
         if step == 0:
             self._init_cache(state)
 
@@ -252,7 +257,8 @@ class TransformerDecoder(DecoderBase):
                 layer_cache=layer_cache,
                 step=step,
                 coverage=None if layer_wise_coverage is None
-                else layer_wise_coverage[i]
+                else layer_wise_coverage[i],
+                edge_matrix=edge_matrix
             )
             representations.append(output)
             std_attentions.append(attn)

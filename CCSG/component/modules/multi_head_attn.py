@@ -270,7 +270,7 @@ class MultiHeadedAttention(nn.Module):
         attn_per_head = [attn.squeeze(1)
                          for attn in attn.chunk(head_count, dim=1)]
 
-        covrage_vector = None
+        coverage_vector = None
         if (self._coverage and attn_type == 'context') and step is not None:
             coverage_vector = exp_score  # B x num_heads x 1 x key_len
 

@@ -75,9 +75,9 @@ def add_train_args(parser):
     # Files
     files = parser.add_argument_group('Filesystem')
 
-    files.add_argument('--train_dataset', type=str, default="/root/CCSG/data/data_cache/train_android_block.pkl",
+    files.add_argument('--train_dataset', type=str, default="/root/CCSG/data/data_cache/train_java_construct.pkl",
                        help='the dir of dataset')
-    files.add_argument('--test_dataset', type=str, default="/root/CCSG/data/data_cache/eval_android_block.pkl",
+    files.add_argument('--test_dataset', type=str, default="/root/CCSG/data/data_cache/eval_java_construct.pkl",
                        help='the dir of dataset')
     files.add_argument('--dicts', type=str, default="/root/CCSG/data/data_cache/dicts_java_block.pkl",
                        help='the dir of dictionary')

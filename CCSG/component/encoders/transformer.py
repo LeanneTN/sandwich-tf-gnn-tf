@@ -5,7 +5,7 @@ Implementation of "Attention is All You Need"
 import torch.nn as nn
 
 from component.modules.util_class import LayerNorm
-from component.modules.multi_head_attn import MultiHeadedAttention
+from component.modules.multi_head_attn_great import MultiHeadedAttention
 from component.modules.position_ffn import PositionwiseFeedForward
 from component.encoders.encoder import EncoderBase
 from component.utils.misc import sequence_mask
@@ -47,7 +47,7 @@ class TransformerEncoderLayer(nn.Module):
         # 带有残差的全连接层
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff, dropout)
 
-    def forward(self, inputs, mask):
+    def forward(self, inputs, mask, edge_matrix):
         """
         Transformer Encoder Layer definition.
         Args:
@@ -58,7 +58,7 @@ class TransformerEncoderLayer(nn.Module):
             * outputs `[batch_size x src_len x model_dim]`
         """
         context, attn_per_head, _ = self.attention(inputs, inputs, inputs,
-                                                   mask=mask, attn_type="self")
+                                                   mask=mask, attn_type="self", edge_matrix=edge_matrix)
         out = self.layer_norm(self.dropout(context) + inputs)
         return self.feed_forward(out), attn_per_head
 
@@ -122,7 +122,7 @@ class TransformerEncoder(EncoderBase):
         params = list(self.layer.parameters())
         return sum(p.numel() for p in params if p.requires_grad)
 
-    def forward(self, src, lengths=None):
+    def forward(self, src, lengths=None, edge_matrix=None):
         """
         Args:
             src (`FloatTensor`): `[batch_size x src_len x model_dim]`
@@ -140,7 +140,7 @@ class TransformerEncoder(EncoderBase):
         representations = []
         attention_scores = []
         for i in range(self.num_layers):
-            out, attn_per_head = self.layer[i](out, mask)
+            out, attn_per_head = self.layer[i](out, mask, edge_matrix)
             representations.append(out)
             attention_scores.append(attn_per_head)
 
