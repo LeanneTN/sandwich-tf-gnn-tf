@@ -126,7 +126,7 @@ class Encoder(nn.Module):
                 input,
                 input_len,
                 edge_matrix):
-        layer_outputs, _ = self.transformer(input, input_len, edge_matrix)  # B x seq_len x h
+        layer_outputs, _ = self.transformer(input, input_len, edge_matrix=edge_matrix)  # B x seq_len x h
         if self.use_all_enc_layers:
             output = torch.stack(layer_outputs, dim=2)  # B x seq_len x nlayers x h
             layer_scores = self.layer_weights(output).squeeze(3)
@@ -322,7 +322,7 @@ class Transformer(nn.Module):
 
         # data的形式? data_tuple的形式?
         (data, (source_map, blank, fill)) = data_tuple
-        (vec_type, vec_token, vec_src, vec_tgt, vec_attrs, vec_MASK), edge_metrix, (
+        (vec_type, vec_token, vec_src, vec_tgt, vec_attrs, vec_MASK), edge_matrix, (
             lengths_type, lengths_token, lengths_src, lengths_tgt, lengths_node
         ), (src_vocabs, src_map, alignments) = data
 
@@ -360,10 +360,10 @@ class Transformer(nn.Module):
         node_val = self.M_type(type_rep) + self.M_token(token_rep)
 
         # 前向传播encoder
-        memory_bank, layer_wise_outputs = self.encoder(node_val, lengths_src, edge_metrix)  # B x seq_len x h
+        memory_bank, layer_wise_outputs = self.encoder(node_val, lengths_src, edge_matrix=edge_matrix)  # B x seq_len x h
 
         # gnn运行后的结果
-        gnn_output = self.gnn(memory_bank, edge_metrix)
+        gnn_output = self.gnn(memory_bank, edge_matrix)
 
         gnn = gnn_output
         # 将GNN的output放入解码

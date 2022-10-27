@@ -122,7 +122,7 @@ class TransformerEncoder(EncoderBase):
         params = list(self.layer.parameters())
         return sum(p.numel() for p in params if p.requires_grad)
 
-    def forward(self, src, lengths=None, edge_matrix=None):
+    def forward(self, src, edge_matrix, lengths=None):
         """
         Args:
             src (`FloatTensor`): `[batch_size x src_len x model_dim]`
