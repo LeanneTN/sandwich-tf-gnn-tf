@@ -95,15 +95,15 @@ class TransformerDecoderLayer(nn.Module):
                                      attn_type="self")
         query_norm = self.layer_norm(self.drop(query) + inputs)
 
-        if gnn is not None:
-            gnn_out, attn_of_gnn, _ = self.gnn_attn(gnn,
-                                                    gnn,
-                                                    mask=node_pad_mask,
-                                                    layer_cache=layer_cache,
-                                                    attn_type="gnn",
-                                                    step=step,
-                                                    coverage=coverage)
-            query_norm = self.layer_norm_3(self.drop(gnn_out))
+        # if gnn is not None:
+        #     gnn_out, attn_of_gnn, _ = self.gnn_attn(gnn,
+        #                                             gnn,
+        #                                             mask=node_pad_mask,
+        #                                             layer_cache=layer_cache,
+        #                                             attn_type="gnn",
+        #                                             step=step,
+        #                                             coverage=coverage)
+        #     query_norm = self.layer_norm_3(self.drop(gnn_out))
 
         # if memory_bank is not None:
         #     mid, attn, coverage = self.context_attn(memory_bank,

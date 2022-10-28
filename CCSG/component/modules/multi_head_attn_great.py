@@ -44,12 +44,13 @@ class MultiHeadedAttention(nn.Module):
        dropout (float): dropout parameter
     """
 
-    def __init__(self, head_count, model_dim, d_k, d_v, dropout=0.1,
+    def __init__(self, head_count, model_dim, d_k, d_v, bias_dim=None, dropout=0.1,
                  max_relative_positions=0, use_neg_dist=True, coverage=False):
         super(MultiHeadedAttention, self).__init__()
 
         self.head_count = head_count
         self.model_dim = model_dim
+        self.bias_dim = bias_dim
         self.d_k = d_k
         self.d_v = d_v
 
@@ -65,6 +66,10 @@ class MultiHeadedAttention(nn.Module):
         self.max_relative_positions = max_relative_positions
         self.use_neg_dist = use_neg_dist
 
+        self.bias_learn = []
+        for i in range(6):
+            self.bias_learn.append(nn.Parameter(torch.FloatTensor(92)))
+
         if max_relative_positions > 0:
             vocab_size = max_relative_positions * 2 + 1 \
                 if self.use_neg_dist else max_relative_positions + 1
@@ -73,7 +78,7 @@ class MultiHeadedAttention(nn.Module):
             self.relative_positions_embeddings_v = nn.Embedding(
                 vocab_size, self.d_v)
 
-    def forward(self, key, value, query, mask=None, layer_cache=None,
+    def forward(self, key, value, query, edge_matrix=None, mask=None, layer_cache=None,
                 attn_type=None, step=None, coverage=None):
         """
         Compute the context vector and the attention vectors.
@@ -91,23 +96,6 @@ class MultiHeadedAttention(nn.Module):
            * output context vectors ``(batch, query_len, dim)``
            * one of the attention vectors ``(batch, query_len, key_len)``
         """
-
-        # CHECKS
-        # batch, k_len, d = key.size()
-        # batch_, k_len_, d_ = value.size()
-        # aeq(batch, batch_)
-        # aeq(k_len, k_len_)
-        # aeq(d, d_)
-        # batch_, q_len, d_ = query.size()
-        # aeq(batch, batch_)
-        # aeq(d, d_)
-        # aeq(self.model_dim % 8, 0)
-        # if mask is not None:
-        #    batch_, q_len_, k_len_ = mask.size()
-        #    aeq(batch_, batch)
-        #    aeq(k_len_, k_len)
-        #    aeq(q_len_ == q_len)
-        # END CHECKS
 
         batch_size = key.size(0)
         head_count = self.head_count
@@ -186,8 +174,30 @@ class MultiHeadedAttention(nn.Module):
 
         # 2) Calculate and scale scores.
         query = query / math.sqrt(self.d_k)
+        '_____________________________________________________________________________________________'
+        # 将传入的边的邻接矩阵分开，并将每个初始化一个自训练变量填入，然后将其按照论文中的公式相加
+        bias_shape = [int(edge_matrix.shape[0]), int(edge_matrix.shape[1]), int(edge_matrix.shape[2]/6)]
+        e = torch.zeros(bias_shape)
+        edge_matrix_shape = edge_matrix.shape
+        num_of_each_edge = int(edge_matrix_shape[2] / 6)
+        edge_matrix_layers = []
+        for i in range(6):
+            edge_matrix_layers.append(edge_matrix[:, :, i * num_of_each_edge: (i + 1) * num_of_each_edge])
+            a = self.bias_learn[i]
+            m = torch.zeros_like(a)
+            edge_matrix_layers[i] = torch.where(edge_matrix_layers[i] == 1, a, m)
+
+        for i in range(6):
+            e += edge_matrix_layers[i]
         # batch x num_heads x query_len x key_len
+        # q_i * k_j --> (q_i + b_ij) * k_j --> q_i * k_j + b_ij * k_j
         query_key = torch.matmul(query, key.transpose(2, 3))
+        query_key_shape = query_key.shape
+        summed_key = torch.sum(key, dim=-1)
+        bias = torch.einsum('bqk,bhk->bhqk', e, summed_key)
+        query_key += bias
+
+        '____________________________________________________________________________________________'
 
         if self.max_relative_positions > 0 and attn_type == "self":
             scores = query_key + relative_matmul(query, relations_keys, True)
