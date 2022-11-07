@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="css518" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="root@in2.css518.cn:16200 password" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="css518">
         <serverdata>
@@ -9,10 +9,24 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="mist@gpu360.mistgpu.xyz:10001">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="root@in2.css518.cn:16200 password">
         <serverdata>
           <mappings>
             <mapping deploy="/root/CCSG" local="$PROJECT_DIR$/CCSG" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@in2.css518.cn:16200 password (1)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

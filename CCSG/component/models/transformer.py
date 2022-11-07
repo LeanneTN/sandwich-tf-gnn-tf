@@ -1,3 +1,4 @@
+""" The kernel components of CCSG"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as f
@@ -22,25 +23,21 @@ class Embedder(nn.Module):
 
     def __init__(self, args):
         super(Embedder, self).__init__()
-        self.enc_input_size = args.emsize
-        self.dec_input_size = args.emsize
+        self.enc_input_size=args.emsize
+        self.dec_input_size=args.emsize
 
-        # 词嵌入
         self.word_embeddings = Embeddings(args.emsize,
-                                          args.vocab_size,
-                                          constants.PAD)
-        # 类型嵌入
+                                              args.vocab_size,
+                                              constants.PAD)
         self.type_embeddings = Embeddings(args.emsize,
-                                          args.type_vocab_size,
-                                          constants.PAD)
-        # 属性嵌入
+                                              args.type_vocab_size,
+                                              constants.PAD)
         self.attr_embeddings = Embeddings(args.emsize,
-                                          args.attr_vocab_size,
-                                          constants.PAD)
+                                              args.attr_vocab_size,
+                                              constants.PAD)
 
-        # 源代码词汇的位置的嵌入
+
         self.src_pos_emb = args.src_pos_emb
-        # 目标代码词汇的位置的嵌入
         self.tgt_pos_emb = args.tgt_pos_emb
         self.no_relative_pos = all(v == 0 for v in args.max_relative_pos)
 
@@ -54,7 +51,7 @@ class Embedder(nn.Module):
 
     def forward(self,
                 sequence,
-                mode='encoder', step=None):
+                mode='encoder',step=None):
 
         if mode == 'encoder':
             word_rep = self.word_embeddings(sequence.unsqueeze(2))
@@ -88,7 +85,7 @@ class Embedder(nn.Module):
         elif mode == 'type':
             word_rep = self.type_embeddings(sequence.unsqueeze(2))
         elif mode == 'attrs':
-            word_rep = self.attr_embeddings(sequence.unsqueeze(2))
+            word_rep=self.attr_embeddings(sequence.unsqueeze(2))
 
         else:
             raise ValueError('Unknown embedder mode!')
@@ -98,9 +95,8 @@ class Embedder(nn.Module):
 
 
 class Encoder(nn.Module):
-    """The module of Sequence Encoder"""
+    """"The module of Sequence Encoder"""
 
-    # 为源代码序列编码的encoder（模型图左边的构件）
     def __init__(self,
                  args,
                  input_size):
@@ -124,9 +120,8 @@ class Encoder(nn.Module):
 
     def forward(self,
                 input,
-                input_len,
-                edge_matrix):
-        layer_outputs, _ = self.transformer(input, input_len, edge_matrix=edge_matrix)  # B x seq_len x h
+                input_len):
+        layer_outputs, _ = self.transformer(input, input_len)  # B x seq_len x h
         if self.use_all_enc_layers:
             output = torch.stack(layer_outputs, dim=2)  # B x seq_len x nlayers x h
             layer_scores = self.layer_weights(output).squeeze(3)
@@ -190,9 +185,39 @@ class Decoder(nn.Module):
         self.split_decoder = args.split_decoder and args.copy_attn
         self.use_seq = args.use_seq
         self.use_gnn = args.use_gnn
+        if self.split_decoder:
+            # Following (https://arxiv.org/pdf/1808.07913.pdf), we try to split decoder
+            self.transformer_c = TransformerDecoder(
+                num_layers=args.nlayers,
+                d_model=self.input_size,
+                heads=args.num_head,
+                d_k=args.d_k,
+                d_v=args.d_v,
+                d_ff=args.d_ff,
+                coverage_attn=args.coverage_attn,
+                dropout=args.trans_drop
+            )
+            self.transformer_d = TransformerDecoder(
+                num_layers=args.nlayers,
+                d_model=self.input_size,
+                heads=args.num_head,
+                d_k=args.d_k,
+                d_v=args.d_v,
+                d_ff=args.d_ff,
+                dropout=args.trans_drop
+            )
 
-        # decoder构建走该分支
-        self.transformer = TransformerDecoder(
+            # To accomplish eq. 19 - 21 from `https://arxiv.org/pdf/1808.07913.pdf`
+            self.fusion_sigmoid = nn.Sequential(
+                nn.Linear(self.input_size * 2, self.input_size),
+                nn.Sigmoid()
+            )
+            self.fusion_gate = nn.Sequential(
+                nn.Linear(self.input_size * 2, self.input_size),
+                nn.ReLU()
+            )
+        else:
+            self.transformer = TransformerDecoder(
                 num_layers=args.nlayers,
                 d_model=self.input_size,
                 heads=args.num_head,
@@ -219,7 +244,12 @@ class Decoder(nn.Module):
                      src_lens,
                      max_src_len, lengths_node=None, max_node_len=None):
 
-        return self.transformer.init_state(src_lens, max_src_len, lengths_node, max_node_len)
+        if self.split_decoder:
+            state_c = self.transformer_c.init_state(src_lens, max_src_len)
+            state_d = self.transformer_d.init_state(src_lens, max_src_len)
+            return state_c, state_d
+        else:
+            return self.transformer.init_state(src_lens, max_src_len, lengths_node, max_node_len)
 
     def decode(self,
                tgt_words,  # tgt_mask
@@ -230,14 +260,29 @@ class Decoder(nn.Module):
                step=None,
                layer_wise_coverage=None):
 
-        # change memory_bank if self.use_seq else None into None
-        decoder_outputs, attns = self.transformer(tgt_words,
-                                                  tgt_emb,
-                                                  None,
-                                                  state,
-                                                  gnn=gnn if self.use_gnn else None,
-                                                  step=step,
-                                                  layer_wise_coverage=layer_wise_coverage)
+        if self.split_decoder:
+            copier_out, attns = self.transformer_c(tgt_words,
+                                                   tgt_emb,
+                                                   memory_bank,
+                                                   state[0],
+                                                   step=step,
+                                                   layer_wise_coverage=layer_wise_coverage)
+            dec_out, _ = self.transformer_d(tgt_words,
+                                            tgt_emb,
+                                            memory_bank,
+                                            state[1],
+                                            step=step)
+            f_t = self.fusion_sigmoid(torch.cat([copier_out, dec_out], dim=-1))
+            gate_input = torch.cat([copier_out, torch.mul(f_t, dec_out)], dim=-1)
+            decoder_outputs = self.fusion_gate(gate_input)
+        else:
+            decoder_outputs, attns = self.transformer(tgt_words,
+                                                      tgt_emb,
+                                                      memory_bank if self.use_seq else None,
+                                                      state,
+                                                      gnn=gnn if self.use_gnn else None,
+                                                      step=step,
+                                                      layer_wise_coverage=layer_wise_coverage)
 
         return decoder_outputs, attns
 
@@ -282,7 +327,6 @@ class Transformer(nn.Module):
             'n_steps': 5,
         }
         # create graph encoder, sequence encoder(encoder), decoder,respectively
-        # 生成GGNN与 Transformer的Encoder和Decoder
         self.gnn = GGNN(gnn_args)
         self.encoder = Encoder(args, self.embedder.enc_input_size)
         self.decoder = Decoder(args, self.embedder.dec_input_size)
@@ -294,78 +338,69 @@ class Transformer(nn.Module):
 
         self._copy = args.copy_attn
         if self._copy:
-            # 全局注意力模型 waiting
             self.copy_attn = GlobalAttention(dim=self.decoder.input_size,
                                              attn_type=args.attn_type)
-            # 复制生成器
             self.copy_generator = CopyGenerator(self.decoder.input_size,
                                                 tgt_dict,
                                                 self.generator)
-            # 评价指标由复制生成器的指标来决定
             self.criterion = CopyGeneratorCriterion(vocab_size=len(tgt_dict),
                                                     force_copy=args.force_copy)
         else:
-            # 如果不使用复制策略，则由二次交叉熵来评估模型
             self.criterion = nn.CrossEntropyLoss(reduction='none')
 
         # if args.MTL:
         #     self.tokenQuantityRegressor = TokenQuantityRegressor(args)
         #     self.autoWeightedLoss = AutoWeightedLoss(2, args)
-        self.args = args
-        self.M_token = nn.Linear(args.emsize, args.emsize, bias=False)
-        self.M_type = nn.Linear(args.emsize, args.emsize, bias=False)
-        self.token_vocab = tgt_dict
+        self.args=args
+        self.M_token=nn.Linear(args.emsize, args.emsize,bias=False)
+        self.M_type = nn.Linear(args.emsize, args.emsize,bias=False)
+        self.token_vocab=tgt_dict
 
     def _run_forward_ml(self,
-                        data_tuple, mode):
+                        data_tuple,mode):
 
-        # data的形式? data_tuple的形式?
-        (data, (source_map, blank, fill)) = data_tuple
-        (vec_type, vec_token, vec_src, vec_tgt, vec_attrs, vec_MASK), edge_matrix, (
+
+        (data, (source_map, blank, fill)) =data_tuple
+        (vec_type, vec_token, vec_src, vec_tgt, vec_attrs, vec_MASK), edge_metrix, (
             lengths_type, lengths_token, lengths_src, lengths_tgt, lengths_node
-        ), (src_vocabs, src_map, alignments) = data
+        ), (src_vocabs, src_map, alignments)=data
 
         src_rep = self.embedder(vec_src,
-                                mode='encoder')
+                                 mode='encoder')
 
-        batch_size = len(vec_MASK)
+        batch_size=len(vec_MASK)
+
+        memory_bank, layer_wise_outputs = self.encoder(src_rep, lengths_src)  # B x seq_len x h
 
         # if self.MTL:
         #     tarCode_len_labels = tarCode_len.to(torch.float32)
         #     quantity_out, mse_loss = self.tokenQuantityRegressor(memory_bank, tarCode_len_labels)
 
-        vec_full_type = torch.zeros(size=vec_attrs.shape, dtype=torch.long, device=vec_attrs.device)
+        vec_full_type=torch.zeros(size=vec_attrs.shape,dtype=torch.long,device=vec_attrs.device)
 
-        vec_full_token = torch.zeros(size=vec_attrs.shape, dtype=torch.long, device=vec_attrs.device)
-        # 遍历列表中的每一个token
+        vec_full_token=torch.zeros(size=vec_attrs.shape,dtype=torch.long,device=vec_attrs.device)
         for idx in range(len(lengths_token)):
-            l_type = lengths_type[idx]
-            l_token = lengths_token[idx]
-            # scatter函数按照index和dim参数给出的条件，将原tensor按照条件放到新的tensor里
+            l_type=lengths_type[idx]
+            l_token=lengths_token[idx]
             vec_full_type[idx].scatter_(0, torch.arange(0, l_type, device=vec_type.device, dtype=torch.int64),
-                                        vec_type[idx])
-            vec_full_token[idx].scatter_(0, torch.arange(l_type, l_type + l_token, device=vec_token.device,
-                                                         dtype=torch.int64), vec_token[idx])
+                                         vec_type[idx])
+            vec_full_token[idx].scatter_(0,torch.arange(l_type,l_type+l_token,device=vec_token.device,dtype=torch.int64),vec_token[idx])
 
-        # 将相关的类型数据和token数据转换为嵌入数据
-        type_rep = self.embedder(vec_full_type,
+        type_rep=self.embedder(vec_full_type,
                                  mode='type')
-        token_rep = self.embedder(vec_full_token,
-                                  mode='token')
-        attr_rep = self.embedder(vec_attrs,
+        token_rep=self.embedder(vec_full_token,
+                                 mode='token')
+        attr_rep=self.embedder(vec_attrs,
                                  mode='attrs')
 
-        # 将类型与token的嵌入向量相加
-        node_val = self.M_type(type_rep) + self.M_token(token_rep)
+        node_val=self.M_type(type_rep)+self.M_token(token_rep)
 
-        # 前向传播encoder
-        memory_bank, layer_wise_outputs = self.encoder(node_val, lengths_src, edge_matrix=edge_matrix)  # B x seq_len x h
 
-        # gnn运行后的结果
-        gnn_output = self.gnn(memory_bank, edge_matrix)
+
+        gnn_output = self.gnn(node_val, edge_metrix)
 
         gnn = gnn_output
-        # 将GNN的output放入解码
+
         if mode == "test":
             params = dict()
             params['memory_bank'] = memory_bank
@@ -383,12 +418,7 @@ class Transformer(nn.Module):
             params['gnn'] = gnn
             params['node_len'] = lengths_node
 
-            """
-            将decoder.decode进行修改，把memory_bank改成None，只保留GNN
-            统一把GNN输进去，decoder部分也不需要把GNN输入
-            """
             dec_preds, attentions, copy_info, _ = self.__generate_sequence(params, choice='greedy')
-            # 将dec_preds和copy_info中的张量进行拼接操作：dim=1时，张量以行的形式插入到前面张量的下方
             dec_preds = torch.stack(dec_preds, dim=1)
             copy_info = torch.stack(copy_info, dim=1) if copy_info else None
             # attentions: batch_size x tgt_len x num_heads x src_len
@@ -402,14 +432,13 @@ class Transformer(nn.Module):
 
         # todo input gnnencoder
 
-        # test模式之外的forward
-        # 目标代码的图嵌入值
         tarCode_emb = self.embedder(vec_tgt,
                                     mode='decoder')
-        # sequence_mask：根据生成的嵌入值序列长度生成一个布尔值的mask
         tarCode_pad_mask = ~sequence_mask(lengths_tgt, max_len=tarCode_emb.size(1))
 
+
         enc_outputs = layer_wise_outputs if self.layer_wise_attn else memory_bank
+
 
         layer_wise_dec_out, attns = self.decoder(enc_outputs,
                                                  lengths_src,
@@ -461,7 +490,7 @@ class Transformer(nn.Module):
         # loss['coefs_final'] = coefs_final
         return loss, attns
 
-    def forward(self, data_tuple):
+    def forward(self,data_tuple):
         """
         Input:
             - code_word_rep: ``(batch_size, max_doc_len)``
@@ -475,10 +504,10 @@ class Transformer(nn.Module):
             - ``(batch_size, P_LEN)``, ``(batch_size, P_LEN)``
         """
         if self.training:
-            return self._run_forward_ml(data_tuple, mode="train")
+            return self._run_forward_ml(data_tuple,mode="train")
 
         else:
-            return self._run_forward_ml(data_tuple, mode="test")
+            return self._run_forward_ml(data_tuple,mode="test")
 
     def __tens2sent(self,
                     t,
@@ -499,19 +528,16 @@ class Transformer(nn.Module):
                             params,
                             choice='greedy',
                             tgt_words=None):
-        """
-        用于生成序列?
-        """
+
         batch_size = params['memory_bank'].size(0)
-        # use_cuda = params['memory_bank'].is_cuda
-        use_cuda = True
+        use_cuda = params['memory_bank'].is_cuda
 
         if tgt_words is None:
-            # 在目标单词为为空的时候，将目标单词替换为含bos的longTensor类型
             tgt_words = torch.LongTensor([constants.BOS])
             if use_cuda:
                 tgt_words = tgt_words.cuda()
             tgt_words = tgt_words.expand(batch_size).unsqueeze(1)  # B x 1
+
 
         dec_preds = []
         copy_info = []
@@ -522,21 +548,14 @@ class Transformer(nn.Module):
         lengths_node = params['node_len']
         gnn = params['gnn']
 
-        # 如果memoryBank是list，取其第0位的shape的第一位长度作为max_mem_len
-        # 否则取memoryBank的shape的第一位
         max_mem_len = params['memory_bank'][0].shape[1] \
             if isinstance(params['memory_bank'], list) else params['memory_bank'].shape[1]
 
-        # 与上面的方法原理相同
         max_node_len = params['gnn'][0].shape[1] \
             if isinstance(params['gnn'], list) else params['gnn'].shape[1]
-        # 定义新的decoder并进行decoder的状态初始化
-        # max_mem_len作为init_state里的src_max_len项
         dec_states = self.decoder.init_decoder(params['src_len'], max_mem_len, lengths_node, max_node_len)
 
         attns = {"coverage": None}
-        # layer_wise_attn存在的话enc_outputs用它，否则用memoryBank
-        # enc_outputs可以不需要?
         enc_outputs = params['layer_wise_outputs'] if self.layer_wise_attn \
             else params['memory_bank']
 
@@ -547,7 +566,6 @@ class Transformer(nn.Module):
                                 step=idx)
 
             tgt_pad_mask = tgt_words.data.eq(constants.PAD)
-            # change enc_outputs into None
             layer_wise_dec_out, attns = self.decoder.decode(tgt_pad_mask,
                                                             tgt,
                                                             enc_outputs,
@@ -555,7 +573,6 @@ class Transformer(nn.Module):
                                                             gnn=gnn,
                                                             step=idx,
                                                             layer_wise_coverage=attns['coverage'])
-            # 得到decoder的输出
             decoder_outputs = layer_wise_dec_out[-1]
             acc_dec_outs.append(decoder_outputs.squeeze(1))
             if self._copy:
@@ -641,8 +658,7 @@ class Transformer(nn.Module):
         gnn = gnn_output
 
         params = dict()
-        # change memory_bank into None
-        params['memory_bank'] = None
+        params['memory_bank'] = memory_bank
         params['layer_wise_outputs'] = layer_wise_outputs
         params['src_len'] = code_len
         params['source_vocab'] = kwargs['source_vocab']

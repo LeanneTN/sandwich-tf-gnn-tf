@@ -75,23 +75,30 @@ def add_train_args(parser):
     # Files
     files = parser.add_argument_group('Filesystem')
 
-    files.add_argument('--train_dataset', type=str, default="/root/CCSG/data/data_cache/train_java_construct.pkl",
+    files.add_argument('--train_dataset', type=str,  default="/root/CCSG/data/data_cache/train_java_construct.pkl",
                        help='the dir of dataset')
-    files.add_argument('--test_dataset', type=str, default="/root/CCSG/data/data_cache/test_java_construct.pkl",
+    files.add_argument('--test_dataset', type=str,  default="/root/CCSG/data/data_cache/test_java_construct.pkl",
                        help='the dir of dataset')
-    files.add_argument('--dicts', type=str, default="/root/CCSG/data/data_cache/dicts.pkl",
+    files.add_argument('--dicts', type=str,  default="/root/CCSG/data/data_cache/dicts.pkl",
                        help='the dir of dictionary')
+
+
+
 
     files.add_argument('--model_dir', type=str, default='/tmp/qa_models/',
                        help='Directory for saved models/checkpoints/logs')
     files.add_argument('--model_name', type=str, default='',
                        help='Unique model identifier (.mdl, .txt, .checkpoint)')
 
+
     files.add_argument('--bpe_vocab', nargs='+', type=str, default='bpe_vocab.out',
                        help='bpe vocabulary')
 
     files.add_argument('--train_cache', nargs='+', type=str,
                        help='the cache file of processed graphs')
+
+
+
 
     # Saving + loading
     save_load = parser.add_argument_group('Saving/Loading')
@@ -133,7 +140,7 @@ def add_train_args(parser):
                          help='the dimension of token quantity regressor')
     general.add_argument('--MTL', type='bool', default=True,
                          help='whether use MTL to fit the token quantity')
-    general.add_argument("--virtual", type="bool", default=False,
+    general.add_argument("--virtual",type="bool",default=False,
                          help='whether use virtual nodes'
                          )
     general.add_argument("--constant_weight", nargs='+', type=float, default=None, help="the weight of loss")
@@ -224,12 +231,12 @@ def train(args, data_loader, model, global_stats, tb_writer: SummaryWriter = Non
             for param_group in model.optimizer.param_groups:
                 param_group['lr'] = cur_lrate
 
-        net_loss = model.update(ex, current_epoch)
+        net_loss = model.update(ex,current_epoch)
         ml_loss.update(net_loss['ml_loss'], bsz)
         perplexity.update(net_loss['perplexity'], bsz)
 
         log_info = 'Epoch = %d [perplexity = %.2f, ml_loss = %.2f]' % \
-                   (current_epoch, perplexity.avg, ml_loss.avg)
+                       (current_epoch, perplexity.avg, ml_loss.avg)
 
         pbar.set_description("%s" % log_info)
 
@@ -239,7 +246,7 @@ def train(args, data_loader, model, global_stats, tb_writer: SummaryWriter = Non
     tb_writer.add_scalar('train/ml_loss', ml_loss.avg, current_epoch)
     tb_writer.add_scalar('train/perplexity', perplexity.avg, current_epoch)
     # Checkpoint
-    if args.checkpoint:
+    if args.checkpoint :
         model.checkpoint(args.model_file + '.checkpoint', current_epoch + 1)
 
 
@@ -259,16 +266,16 @@ def validate_official(args, data_loader, model, global_stats, mode='dev', tb_wri
     eval_time = Timer()
     # Run through examples
     examples = 0
-    sources, hypotheses, references, copy_dict, types = dict(), dict(), dict(), dict(), dict()
+    sources, hypotheses, references, copy_dict,types = dict(), dict(), dict(), dict(),dict()
     with torch.no_grad():
         pbar = tqdm(data_loader)
-        ending_idx = 0
+        ending_idx=0
         for idx, ex in enumerate(pbar):
             batch_size = ex['batch_size']
-            ex_ids = list(range(ending_idx, ending_idx + batch_size))
-            ending_idx = ending_idx + batch_size
+            ex_ids = list(range(ending_idx, ending_idx+batch_size))
+            ending_idx=ending_idx+batch_size
             predictions, targets, copy_info = model.predict(ex, replace_unk=True)
-            targets = [[str(i.value) for i in t] for t in targets]
+            targets=[[str(i.value) for i in t] for t in targets]
             src_sequences = [code for code in ex['raw_text']]
             # type_sequence=[type for type in ex['eval_types']]
             examples += batch_size
@@ -281,6 +288,7 @@ def validate_official(args, data_loader, model, global_stats, mode='dev', tb_wri
                 hypotheses[key] = pred
                 references[key] = tgt if isinstance(tgt, list) else [tgt]
                 sources[key] = src
+
 
             if copy_info is not None:
                 copy_info = copy_info.cpu().numpy().astype(int).tolist()
@@ -298,13 +306,13 @@ def validate_official(args, data_loader, model, global_stats, mode='dev', tb_wri
     #                                                                filename=args.pred_file,
     #                                                                print_copy_info=args.print_copy_info,
     #                                                                mode=mode,eval_types=types)
-    bleu1, bleu2, bleu3, bleu4, lv, perfect = eval_official_scores(hypotheses,
-                                                                   references,
-                                                                   copy_dict,
-                                                                   sources=sources,
-                                                                   filename=args.pred_file)
+    bleu1,bleu2,bleu3,bleu4,lv,perfect=eval_official_scores(hypotheses,
+               references,
+               copy_dict,
+               sources=sources,
+               filename=args.pred_file)
 
-    bleu1, bleu2, bleu3, bleu4, lv, perfect = bleu1 * 100, bleu2 * 100, bleu3 * 100, bleu4 * 100, lv * 100, perfect * 100
+    bleu1, bleu2, bleu3, bleu4, lv, perfect=bleu1*100,bleu2*100,bleu3*100,bleu4*100,lv*100,perfect*100
 
     # def is_perfect_prediction(a, b):
     #     a = ''.join(a)
@@ -337,7 +345,7 @@ def validate_official(args, data_loader, model, global_stats, mode='dev', tb_wri
         logger.info('test valid official: '
                     'bleu1 = %.2f | bleu2 = %.2f | bleu3 = %.2f | ' %
                     (bleu1, bleu2, bleu3) +
-                    'perfect = %.2f | lv = %.2f | lengths = %.2f | ' %
+                    'perfect = %.2f | lv = %.2f | lengths = %.2f | '  %
                     (perfect, lv, len(hypotheses)) +
                     'test time = %.2f (s)' % eval_time.time())
 
@@ -345,7 +353,7 @@ def validate_official(args, data_loader, model, global_stats, mode='dev', tb_wri
         logger.info('eval valid official: '
                     'bleu1 = %.2f | bleu2 = %.2f | bleu3 = %.2f | ' %
                     (bleu1, bleu2, bleu3) +
-                    'perfect = %.2f | lv = %.2f | lengths = %.0f | ' %
+                    'perfect = %.2f | lv = %.2f | lengths = %.0f | '  %
                     (perfect, lv, len(hypotheses)) +
                     'test time = %.2f (s)' % eval_time.time())
 
@@ -392,34 +400,33 @@ def compute_eval_score(prediction, ground_truths):
             precision, recall, f1 = _prec, _rec, _f1
     return precision, recall, f1
 
-
 def eval_official_scores(hypotheses, references, copy_info, sources=None,
-                         filename=None):
-    lengths = [len(i) for i in hypotheses.values()]
-    hyps = [i for i in hypotheses.values()]
-    refs = [i for i in references.values()]
+                    filename=None):
+    lengths=[len(i) for i in hypotheses.values()]
+    hyps=[i for i in hypotheses.values()]
+    refs=[i for i in references.values()]
     bleu1 = list()
     bleu2 = list()
     bleu3 = list()
     bleu4 = list()
     lev = list()
-    perfect_num = 0
+    perfect_num=0
     for i in range(len(hyps)):
-        hyp = hyps[i]
-        ref = refs[i]
-        leng = lengths[i]
-        is_perfect = True
-        if len(hyp) != len(ref):
-            is_perfect = False
+        hyp=hyps[i]
+        ref=refs[i]
+        leng=lengths[i]
+        is_perfect=True
+        if len(hyp)!=len(ref):
+            is_perfect=False
         else:
-            for p, q in zip(hyp, ref):
+            for p,q in zip(hyp,ref):
                 if p != q:
-                    is_perfect = False
+                    is_perfect=False
                     break
-        b1, b2, b3, b4, lv = metrics.evaluate_metrics(ref, hyp, is_perfect)
+        b1, b2, b3, b4, lv = metrics.evaluate_metrics(ref,hyp,is_perfect)
 
         if is_perfect:
-            perfect_num = perfect_num + 1
+            perfect_num=perfect_num+1
 
         bleu1.append(b1)
         if b2 is not None:
@@ -430,8 +437,7 @@ def eval_official_scores(hypotheses, references, copy_info, sources=None,
             bleu4.append(b4)
         lev.append(lv)
 
-    return sum(bleu1) / len(bleu1), sum(bleu2) / len(bleu2), sum(bleu3) / len(bleu3), sum(bleu4) / len(bleu4), sum(
-        lev) / len(lev), perfect_num / len(hyps)
+    return sum(bleu1)/len(bleu1),sum(bleu2)/len(bleu2),sum(bleu3)/len(bleu3),sum(bleu4)/len(bleu4),sum(lev)/len(lev),perfect_num/len(hyps)
 
 
 # ------------------------------------------------------------------------------
@@ -443,7 +449,7 @@ def main(args):
     tb_writer = SummaryWriter(log_dir='tensorboard/' + args.model_name)
     if args.debug:
         args.test_dataset = args.train_dataset + ".debug"
-        args.train_dataset = args.train_dataset + ".debug"
+        args.train_dataset=args.train_dataset+".debug"
     logger.info(f'fuse type: {args.fuse_type}')
     # --------------------------------------------------------------------------
     # DATA
@@ -451,16 +457,17 @@ def main(args):
     logger.info('Load and process data files')
 
     if not args.only_test:
-        train_exs = pickle.load(open(args.train_dataset, mode="rb"))
+        train_exs = pickle.load(open(args.train_dataset,mode="rb"))
         logger.info('Num train examples = %d' % len(train_exs["reses"]))
     else:
-        train_exs = None
+        train_exs=None
 
-    test_exs = pickle.load(open(args.test_dataset, mode="rb"))
+
+    test_exs = pickle.load(open(args.test_dataset,mode="rb"))
 
     logger.info('Num dev examples = %d' % len(test_exs["reses"]))
 
-    vocabs = util.making_dicts([train_exs, test_exs], args)
+    vocabs=util.making_dicts([train_exs,test_exs],args)
 
     # --------------------------------------------------------------------------
     # MODEL
@@ -472,7 +479,7 @@ def main(args):
         else:
             if not os.path.isfile(args.model_file):
                 raise IOError('No such file: %s' % args.model_file)
-            model = CCSGModel.load(args.model_file, args)
+            model = CCSGModel.load(args.model_file,args)
     else:
         if args.checkpoint and os.path.isfile(args.model_file + '.checkpoint'):
             # Just resume training, no modifications.
@@ -480,7 +487,7 @@ def main(args):
             checkpoint_file = args.model_file + '.checkpoint'
             model, start_epoch = CCSGModel.load_checkpoint(checkpoint_file, args.cuda, original_args=args)
             table = model.network.layer_wise_parameters()
-            logger.info('Breakdown of the trainable parameters\n%s' % table)
+            logger.info('Breakdown of the trainable paramters\n%s' % table)
         else:
             # Training starts fresh. But the model state is either pretrained or
             # newly (randomly) initialized.
@@ -488,7 +495,6 @@ def main(args):
                 logger.info('Using pretrained model...')
                 model = CCSGModel.load(args.pretrained, args)
             else:
-                # training from zero
                 logger.info('Training model from scratch...')
                 model = init_from_scratch(args, vocabs)
 
@@ -500,7 +506,7 @@ def main(args):
                              model.network.count_decoder_parameters()),
                 human_format(model.network.count_parameters())))
             table = model.network.layer_wise_parameters()
-            logger.info('Breakdown of the trainable parameters\n%s' % table)
+            logger.info('Breakdown of the trainable paramters\n%s' % table)
 
     # Use the GPU?
     if args.use_cuda:
@@ -518,7 +524,7 @@ def main(args):
     logger.info('Make data loaders')
 
     if not args.only_test:
-        train_dataset = data.InCompleteCodeDataset(train_exs, args, vocabs)
+        train_dataset = data.InCompleteCodeDataset(train_exs, args,vocabs)
         if args.sort_by_len:
             train_sampler = data.SortedBatchSampler(train_dataset.lengths(),
                                                     args.batch_size,
@@ -536,7 +542,7 @@ def main(args):
             drop_last=args.parallel
         )
 
-    dev_dataset = data.InCompleteCodeDataset(test_exs, args, vocabs)
+    dev_dataset = data.InCompleteCodeDataset(test_exs, args,vocabs)
     dev_sampler = torch.utils.data.sampler.SequentialSampler(dev_dataset)
 
     dev_loader = torch.utils.data.DataLoader(

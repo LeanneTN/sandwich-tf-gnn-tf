@@ -15,7 +15,6 @@ class PositionwiseFeedForward(nn.Module):
             dropout (float): dropout probability(0-1.0).
     """
 
-    # 有残差连接的全连接层
     def __init__(self, d_model, d_ff, dropout=0.1):
         super(PositionwiseFeedForward, self).__init__()
         self.intermediate = nn.Linear(d_model, d_ff)

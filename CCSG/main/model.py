@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class CCSGModel(object):
-    """High level model that handles initializing the underlying network
+    """High level model that handles intializing the underlying network
     architecture, saving, updating examples, and predicting examples.
     """
 
