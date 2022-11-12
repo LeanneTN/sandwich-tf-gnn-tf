@@ -252,19 +252,19 @@ def batchify_old(batch):
     }
 
 def batchify(batch):
-    lengths_type = torch.tensor([len(b['types']) for b in batch],dtype=torch.long)
-    lengths_token = torch.tensor([len(b['tokens']) for b in batch],dtype=torch.long)
+    # lengths_type = torch.tensor([len(b['types']) for b in batch],dtype=torch.long)
+    # lengths_token = torch.tensor([len(b['tokens']) for b in batch],dtype=torch.long)
     lengths_src = torch.tensor([len(b['text_src']) for b in batch],dtype=torch.long)
     lengths_tgt = torch.tensor([len(b['text_tgt']) for b in batch],dtype=torch.long)
-    lengths_node=torch.tensor([len(b['types'])+len(b['tokens']) for b in batch],dtype=torch.long)
+    # lengths_node=torch.tensor([len(b['types'])+len(b['tokens']) for b in batch],dtype=torch.long)
     batch_size = torch.tensor(len(batch),dtype=torch.long)
 
-    vec_type=torch.zeros(batch_size, max(lengths_type)).long()
-    vec_token = torch.zeros(batch_size, max(lengths_token)).long()
+    # vec_type=torch.zeros(batch_size, max(lengths_type)).long()
+    # vec_token = torch.zeros(batch_size, max(lengths_token)).long()
     vec_src = torch.zeros(batch_size, max(lengths_src)).long()
     vec_tgt = torch.zeros(batch_size, max(lengths_tgt)).long()
     vec_MASK = torch.zeros(batch_size).long()
-    vec_attrs = torch.zeros(batch_size, max(lengths_node)).long()
+    # vec_attrs = torch.zeros(batch_size, max(lengths_node)).long()
 
     src_vocabs=[]
     raw_text=[]
@@ -274,33 +274,33 @@ def batchify(batch):
 
     adjacency_dict = {}
     for i, b in enumerate(batch):
-        vec_type[i,:lengths_type[i]]=b['types']
-        vec_token[i, :lengths_token[i]] = b['tokens']
+        # vec_type[i,:lengths_type[i]]=b['types']
+        # vec_token[i, :lengths_token[i]] = b['tokens']
         vec_src[i, :lengths_src[i]] = b['text_src']
         vec_tgt[i, :lengths_tgt[i]] = b['text_tgt']
-        vec_attrs[i,:lengths_node[i]]=b['attrs']
-        vec_MASK[i]=b['MASK_id']
+        # vec_attrs[i,:lengths_node[i]]=b['attrs']
+        # vec_MASK[i]=b['MASK_id']
         raw_text.append(b['raw_text'])
         raw_tgt.append(b['raw_tgt'])
 
-        max_len=max(lengths_node)
-        for edge_key in edge_type.keys():
-            if edge_key not in b['edge_dicts'].keys():
-                edge_metrix = torch.zeros([1, 1])
-            else:
-                edge_metrix = b['edge_dicts'][edge_key]
-            if edge_key not in adjacency_dict.keys():
-                adjacency_dict[edge_key] = []
-                adjacency_dict["{}_T".format(edge_key)] = []
+        # max_len=max(lengths_node)
+        # for edge_key in edge_type.keys():
+        #     if edge_key not in b['edge_dicts'].keys():
+        #         edge_metrix = torch.zeros([1, 1])
+        #     else:
+        #         edge_metrix = b['edge_dicts'][edge_key]
+        #     if edge_key not in adjacency_dict.keys():
+        #         adjacency_dict[edge_key] = []
+        #         adjacency_dict["{}_T".format(edge_key)] = []
+        #
+        #     edge_metrix=edge_metrix+torch.eye(edge_metrix.shape[0],edge_metrix.shape[0])
+        #     edge_metrix_T=edge_metrix.T
 
-            edge_metrix=edge_metrix+torch.eye(edge_metrix.shape[0],edge_metrix.shape[0])
-            edge_metrix_T=edge_metrix.T
-
-            p2d = (0, max_len - edge_metrix.shape[0], 0, max_len - edge_metrix.shape[1])
-            newmatrix = F.pad(edge_metrix, p2d, "constant", 0)
-            newmatrix_T = F.pad(edge_metrix_T, p2d, "constant", 0)
-            adjacency_dict[edge_key].append(newmatrix)
-            adjacency_dict["{}_T".format(edge_key)].append(newmatrix_T)
+            # p2d = (0, max_len - edge_metrix.shape[0], 0, max_len - edge_metrix.shape[1])
+            # newmatrix = F.pad(edge_metrix, p2d, "constant", 0)
+            # newmatrix_T = F.pad(edge_metrix_T, p2d, "constant", 0)
+            # adjacency_dict[edge_key].append(newmatrix)
+            # adjacency_dict["{}_T".format(edge_key)].append(newmatrix_T)
 
         src_vocabs.append(b['src_vocab'])
         alignments[i, :lengths_tgt[i]]=b['alignments']
@@ -314,19 +314,19 @@ def batchify(batch):
 
     edge_ins=[]
     edge_outs = []
-    for key in edge_type.keys():
-        e=adjacency_dict[key]
-        e_T=adjacency_dict["{}_T".format(key)]
-        edge_ins.append(e)
-        edge_outs.append(e_T)
+    # for key in edge_type.keys():
+    #     e=adjacency_dict[key]
+    #     e_T=adjacency_dict["{}_T".format(key)]
+    #     edge_ins.append(e)
+    #     edge_outs.append(e_T)
 
-    edge_ins=torch.stack(edge_ins,dim=-1)
-    edge_outs = torch.stack(edge_outs, dim=-1)
-    edge_metrix = torch.cat((edge_ins,edge_outs),dim=-1)
-    edge_metrix = edge_metrix.reshape([batch_size,max(lengths_node),-1])
+    # edge_ins=torch.stack(edge_ins,dim=-1)
+    # edge_outs = torch.stack(edge_outs, dim=-1)
+    # edge_metrix = torch.cat((edge_ins,edge_outs),dim=-1)
+    # edge_metrix = edge_metrix.reshape([batch_size,max(lengths_node),-1])
 
-    data = (vec_type,vec_token,vec_src,vec_tgt,vec_attrs,vec_MASK),edge_metrix,(
-    lengths_type,lengths_token, lengths_src , lengths_tgt,lengths_node
+    data = (vec_src,vec_tgt,vec_MASK),None,(
+    lengths_src , lengths_tgt
     ),(src_vocabs,src_map,alignments)
     return {
         "batch_size":batch_size,

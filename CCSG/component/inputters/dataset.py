@@ -73,17 +73,17 @@ class InCompleteCodeDataset(Dataset):
     def convert_vectors(self,ex):
 
 
-        node_len=len(ex["tokens"])+len(ex["types"])
-        edge_dicts={}
-        for key in edge_type.keys():
-            if key in ex['edges'].keys():
-                es=ex['edges'][key]
-            else:es=[]
-            edge_metrix=torch.zeros([node_len,node_len])
-            if len(es)>0:
-                index_edges=torch.tensor([e for e in es],dtype=torch.long).T
-                edge_metrix=edge_metrix.index_put((index_edges[0],index_edges[1]),torch.ones(index_edges.shape[1]))
-            edge_dicts[key] = edge_metrix
+        # node_len=len(ex["tokens"])+len(ex["types"])
+        # edge_dicts={}
+        # for key in edge_type.keys():
+        #     if key in ex['edges'].keys():
+        #         es=ex['edges'][key]
+        #     else:es=[]
+        #     edge_metrix=torch.zeros([node_len,node_len])
+        #     if len(es)>0:
+        #         index_edges=torch.tensor([e for e in es],dtype=torch.long).T
+        #         edge_metrix=edge_metrix.index_put((index_edges[0],index_edges[1]),torch.ones(index_edges.shape[1]))
+        #     edge_dicts[key] = edge_metrix
 
         src_vocab=Vocabulary(no_special_token=True)
         src_vocab.add_tokens([str(i) for i in ex['text'][0]])
@@ -91,15 +91,12 @@ class InCompleteCodeDataset(Dataset):
         alignments=torch.tensor([BOS]+[src_vocab[str(i.value)] for i in ex['text'][1]] +[EOS],dtype=torch.int64)
 
 
-        node_tokens = torch.tensor([self.vocab_token[str(i[0])] for i in ex['tokens']],
-                                dtype=torch.int64)
+        node_tokens = None
 
-        node_types = torch.tensor([self.vocab_type[i[0]] for i in ex['types']],
-                                dtype=torch.int64)
+        node_types = None
 
-        attrs=[i[1] for i in ex['types']] + [i[1] for i in ex['tokens']]
-        node_attr = torch.tensor([self.vocab_attr[i] for i in attrs],
-                                dtype=torch.int64)
+        # attrs=[i[1] for i in ex['types']] + [i[1] for i in ex['tokens']]
+        node_attr = None
 
         text_src=torch.tensor([self.vocab_token[i] for i in ex["text"][0]],
                                 dtype=torch.int64)
@@ -110,8 +107,8 @@ class InCompleteCodeDataset(Dataset):
         item={
             "tokens":node_tokens,
             "types":node_types,
-            "edge_dicts":edge_dicts,
-            "MASK_id":ex['MASK_id'],
+            "edge_dicts":None,
+            "MASK_id":None,
             "text_src":text_src,
             "text_tgt":text_tgt,
             "attrs":node_attr,

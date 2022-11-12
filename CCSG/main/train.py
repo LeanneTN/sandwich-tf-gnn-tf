@@ -150,6 +150,7 @@ def add_train_args(parser):
                          help='whether use seq')
     general.add_argument('--use_gnn', type='bool', default=True,
                          help='whether to use gnn')
+    general.add_argument('--pretrain_stage', type=int, default=25)
 
     # Log results Learning
     log = parser.add_argument_group('Log arguments')
@@ -591,20 +592,21 @@ def main(args):
             tb_writer.add_scalar('train/lr', model.optimizer.param_groups[0]['lr'], epoch)
             train(args, train_loader, model, stats, tb_writer=tb_writer)
             # model.save(args.model_file)
-            result = validate_official(args, dev_loader, model, stats, tb_writer=tb_writer)
+            if(not args.pretrain_stage) and epoch > args.eval_epochs:
+                result = validate_official(args, dev_loader, model, stats, tb_writer=tb_writer)
 
-            # Save best valid
-            if result[args.valid_metric] > stats['best_valid']:
-                logger.info('Best valid: %s = %.2f (epoch %d, %d updates)' %
-                            (args.valid_metric, result[args.valid_metric],
-                             stats['epoch'], model.updates))
-                model.save(args.model_file)
-                stats['best_valid'] = result[args.valid_metric]
-                stats['no_improvement'] = 0
-            else:
-                stats['no_improvement'] += 1
-                if stats['no_improvement'] >= args.early_stop:
-                    break
+                # Save best valid
+                if result[args.valid_metric] > stats['best_valid']:
+                    logger.info('Best valid: %s = %.2f (epoch %d, %d updates)' %
+                                (args.valid_metric, result[args.valid_metric],
+                                 stats['epoch'], model.updates))
+                    model.save(args.model_file)
+                    stats['best_valid'] = result[args.valid_metric]
+                    stats['no_improvement'] = 0
+                else:
+                    stats['no_improvement'] += 1
+                    if stats['no_improvement'] >= args.early_stop:
+                        break
 
 
 if __name__ == '__main__':

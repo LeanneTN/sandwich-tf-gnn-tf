@@ -291,18 +291,19 @@ class Decoder(nn.Module):
                 memory_len,  # code_len
                 tgt_pad_mask,  # tgt_pad_mask
                 tgt_emb,  # tgt_emb
-                gnn, lengths_node):
+                # gnn,
+                lengths_node):
 
         max_mem_len = memory_bank[0].shape[1] \
             if isinstance(memory_bank, list) else memory_bank.shape[1]
-        if gnn is not None:
-            max_node_len = gnn[0].shape[1] \
-                if isinstance(gnn, list) else gnn.shape[1]
-        else:
-            max_node_len = None
+        # if gnn is not None:
+        #     max_node_len = gnn[0].shape[1] \
+        #         if isinstance(gnn, list) else gnn.shape[1]
+        # else:
+        max_node_len = None
         state = self.init_decoder(memory_len, max_mem_len, lengths_node, max_node_len)
-        return self.decode(tgt_pad_mask, tgt_emb, memory_bank, state, gnn=gnn)
-
+        # return self.decode(tgt_pad_mask, tgt_emb, memory_bank, state, gnn=gnn)
+        return self.decode(tgt_pad_mask, tgt_emb, memory_bank, state)
 
 class Transformer(nn.Module):
     """ The modified Transformer serves as the backbone of the CCSG """
@@ -327,7 +328,7 @@ class Transformer(nn.Module):
             'n_steps': 5,
         }
         # create graph encoder, sequence encoder(encoder), decoder,respectively
-        self.gnn = GGNN(gnn_args)
+        # self.gnn = GGNN(gnn_args)
         self.encoder = Encoder(args, self.embedder.enc_input_size)
         self.decoder = Decoder(args, self.embedder.dec_input_size)
         self.layer_wise_attn = args.layer_wise_attn
@@ -361,8 +362,8 @@ class Transformer(nn.Module):
 
 
         (data, (source_map, blank, fill)) =data_tuple
-        (vec_type, vec_token, vec_src, vec_tgt, vec_attrs, vec_MASK), edge_metrix, (
-            lengths_type, lengths_token, lengths_src, lengths_tgt, lengths_node
+        (vec_src, vec_tgt, vec_MASK), edge_metrix, (
+            lengths_src, lengths_tgt
         ), (src_vocabs, src_map, alignments)=data
 
         src_rep = self.embedder(vec_src,
@@ -376,30 +377,30 @@ class Transformer(nn.Module):
         #     tarCode_len_labels = tarCode_len.to(torch.float32)
         #     quantity_out, mse_loss = self.tokenQuantityRegressor(memory_bank, tarCode_len_labels)
 
-        vec_full_type=torch.zeros(size=vec_attrs.shape,dtype=torch.long,device=vec_attrs.device)
+        # vec_full_type=torch.zeros(size=vec_attrs.shape,dtype=torch.long,device=vec_attrs.device)
 
-        vec_full_token=torch.zeros(size=vec_attrs.shape,dtype=torch.long,device=vec_attrs.device)
-        for idx in range(len(lengths_token)):
-            l_type=lengths_type[idx]
-            l_token=lengths_token[idx]
-            vec_full_type[idx].scatter_(0, torch.arange(0, l_type, device=vec_type.device, dtype=torch.int64),
-                                         vec_type[idx])
-            vec_full_token[idx].scatter_(0,torch.arange(l_type,l_type+l_token,device=vec_token.device,dtype=torch.int64),vec_token[idx])
+        # vec_full_token=torch.zeros(size=vec_attrs.shape,dtype=torch.long,device=vec_attrs.device)
+        # for idx in range(len(lengths_token)):
+        #     l_type=lengths_type[idx]
+        #     l_token=lengths_token[idx]
+        #     vec_full_type[idx].scatter_(0, torch.arange(0, l_type, device=vec_type.device, dtype=torch.int64),
+        #                                  vec_type[idx])
+        #     vec_full_token[idx].scatter_(0,torch.arange(l_type,l_type+l_token,device=vec_token.device,dtype=torch.int64),vec_token[idx])
 
-        type_rep=self.embedder(vec_full_type,
-                                 mode='type')
-        token_rep=self.embedder(vec_full_token,
-                                 mode='token')
-        attr_rep=self.embedder(vec_attrs,
-                                 mode='attrs')
+        # type_rep=self.embedder(vec_full_type,
+        #                          mode='type')
+        # token_rep=self.embedder(vec_full_token,
+        #                          mode='token')
+        # attr_rep=self.embedder(vec_attrs,
+        #                          mode='attrs')
 
-        node_val=self.M_type(type_rep)+self.M_token(token_rep)
+        # node_val=self.M_type(type_rep)+self.M_token(token_rep)
 
 
 
-        gnn_output = self.gnn(node_val, edge_metrix)
-
-        gnn = gnn_output
+        # gnn_output = self.gnn(node_val, edge_metrix)
+        #
+        # gnn = gnn_output
 
         if mode == "test":
             params = dict()
@@ -415,8 +416,8 @@ class Transformer(nn.Module):
             params['tgt_dict'] = self.token_vocab
             params['max_len'] = vec_tgt.shape[1]
             params['src_words'] = vec_src
-            params['gnn'] = gnn
-            params['node_len'] = lengths_node
+            # params['gnn'] = gnn
+            params['node_len'] = None
 
             dec_preds, attentions, copy_info, _ = self.__generate_sequence(params, choice='greedy')
             dec_preds = torch.stack(dec_preds, dim=1)
@@ -443,7 +444,7 @@ class Transformer(nn.Module):
         layer_wise_dec_out, attns = self.decoder(enc_outputs,
                                                  lengths_src,
                                                  tarCode_pad_mask,
-                                                 tarCode_emb, gnn, lengths_node)
+                                                 tarCode_emb, None)
 
         decoder_outputs = layer_wise_dec_out[-1]
 
@@ -546,14 +547,14 @@ class Transformer(nn.Module):
         acc_dec_outs = []
 
         lengths_node = params['node_len']
-        gnn = params['gnn']
+        # gnn = params['gnn']
 
         max_mem_len = params['memory_bank'][0].shape[1] \
             if isinstance(params['memory_bank'], list) else params['memory_bank'].shape[1]
 
-        max_node_len = params['gnn'][0].shape[1] \
-            if isinstance(params['gnn'], list) else params['gnn'].shape[1]
-        dec_states = self.decoder.init_decoder(params['src_len'], max_mem_len, lengths_node, max_node_len)
+        # max_node_len = params['gnn'][0].shape[1] \
+        #     if isinstance(params['gnn'], list) else params['gnn'].shape[1]
+        dec_states = self.decoder.init_decoder(params['src_len'], max_mem_len, lengths_node, None)
 
         attns = {"coverage": None}
         enc_outputs = params['layer_wise_outputs'] if self.layer_wise_attn \
@@ -570,7 +571,7 @@ class Transformer(nn.Module):
                                                             tgt,
                                                             enc_outputs,
                                                             dec_states,
-                                                            gnn=gnn,
+                                                            # gnn=gnn,
                                                             step=idx,
                                                             layer_wise_coverage=attns['coverage'])
             decoder_outputs = layer_wise_dec_out[-1]
@@ -651,11 +652,11 @@ class Transformer(nn.Module):
                                  mode='encoder')
         memory_bank, layer_wise_outputs = self.encoder(code_rep, code_len)  # B x seq_len x h
 
-        nodes_feature = self.embedder(nodes, None, mode='gnn',
-                                      type_sequence=type_sequence)  # torch.Size([16, 150, 512])
-        gnn_output = self.gnn(nodes_feature, adjacency_matrix)  # torch.Size([16, 150, 512])
-
-        gnn = gnn_output
+        # nodes_feature = self.embedder(nodes, None, mode='gnn',
+        #                               type_sequence=type_sequence)  # torch.Size([16, 150, 512])
+        # gnn_output = self.gnn(nodes_feature, adjacency_matrix)  # torch.Size([16, 150, 512])
+        #
+        # gnn = gnn_output
 
         params = dict()
         params['memory_bank'] = memory_bank
@@ -670,7 +671,7 @@ class Transformer(nn.Module):
         params['tgt_dict'] = kwargs['tgt_dict']
         params['max_len'] = kwargs['max_len']
         params['src_words'] = code_word_rep
-        params['gnn'] = gnn
+        # params['gnn'] = gnn
         params['node_len'] = lengths_node
 
         dec_preds, attentions, copy_info, _ = self.__generate_sequence(params, choice='greedy')

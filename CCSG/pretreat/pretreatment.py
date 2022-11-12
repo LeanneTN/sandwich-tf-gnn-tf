@@ -516,23 +516,24 @@ def pretreat(file_dir,output_dir="",dict_dir=""):
         split=text.split("	")
         try:
             text_full="class test { " + split[0] + "}"
-            tree,text_full=normal_parse(text_full,"<extra_id_0>")
+            # tree,text_full=normal_parse(text_full,"<extra_id_0>")
             # begin = text_full.find("<extra_id_0>")
             # end = begin + len(split[1])
 
 
-            res_list= {
-                "tokens":[],
-                "types":[]
-            }
-            tks=deep_in_tree(tree.children[2][0],res_list,None)
-            if "field" not in res_list.keys() or res_list['field'] is None:
-                print("wait")
-            conduct_MASK(res_list)
-            res=build_edges(res_list)
+            # res_list= {
+            #     "tokens":[],
+            #     "types":[]
+            # }
+            # tks=deep_in_tree(tree.children[2][0],res_list,None)
+            # if "field" not in res_list.keys() or res_list['field'] is None:
+            #     print("wait")
+            # conduct_MASK(res_list)
+            # res=build_edges(res_list)
+            res = dict()
             res["text"]=get_tokens([text_full,split[1]])
 
-            res['field']=res_list['field']
+            # res['field']=res_list['field']
         except Exception as e:
             error_id.append((ida,e))
             print("error")

@@ -45,9 +45,9 @@ class TransformerDecoderLayer(nn.Module):
             coverage=coverage_attn)
         self.layer_norm_2 = LayerNorm(d_model)
 
-        self.gnn_attn = MultiHeadedAttention(
-            heads, d_model, d_k, d_v, dropout=dropout,
-            coverage=coverage_attn)
+        # self.gnn_attn = MultiHeadedAttention(
+        #     heads, d_model, d_k, d_v, dropout=dropout,
+        #     coverage=coverage_attn)
         self.layer_norm_3 = LayerNorm(d_model)
 
         self.feed_forward = PositionwiseFeedForward(d_model, d_ff, dropout)
@@ -58,7 +58,7 @@ class TransformerDecoderLayer(nn.Module):
                 memory_bank,
                 src_pad_mask,
                 tgt_pad_mask,
-                gnn=None,
+                # gnn=None,
                 node_pad_mask=None,
                 layer_cache=None,
                 step=None,
@@ -77,7 +77,7 @@ class TransformerDecoderLayer(nn.Module):
         """
         dec_mask = None
         attn=None
-        attn_of_gnn=None
+        # attn_of_gnn=None
         if step is None:
             tgt_len = tgt_pad_mask.size(-1)
             future_mask = torch.ones(
@@ -95,16 +95,16 @@ class TransformerDecoderLayer(nn.Module):
                                      attn_type="self")
         query_norm = self.layer_norm(self.drop(query) + inputs)
 
-        if gnn is not None:
-            gnn_out, attn_of_gnn, _ = self.gnn_attn(gnn,
-                                          gnn,
-                                          query_norm,
-                                          mask=node_pad_mask,
-                                          layer_cache=layer_cache,
-                                          attn_type="gnn",
-                                          step=step,
-                                          coverage=coverage)
-            query_norm = self.layer_norm_3(self.drop(gnn_out) + query_norm)
+        # if gnn is not None:
+        #     gnn_out, attn_of_gnn, _ = self.gnn_attn(gnn,
+        #                                   gnn,
+        #                                   query_norm,
+        #                                   mask=node_pad_mask,
+        #                                   layer_cache=layer_cache,
+        #                                   attn_type="gnn",
+        #                                   step=step,
+        #                                   coverage=coverage)
+        #     query_norm = self.layer_norm_3(self.drop(gnn_out) + query_norm)
 
         if memory_bank is not None:
             mid, attn, coverage = self.context_attn(memory_bank,
@@ -130,11 +130,11 @@ class TransformerDecoderLayer(nn.Module):
         #    mid_norm = self.layer_norm_3(self.drop(gnn_out) + query_norm)
 
         output = self.feed_forward(query_norm)
-        if attn==None:
-            attn=attn_of_gnn
-        if attn_of_gnn==None:
-            attn_of_gnn=attn
-        return output, attn, coverage, attn_of_gnn
+        # if attn==None:
+        #     attn=attn_of_gnn
+        # if attn_of_gnn==None:
+        #     attn_of_gnn=attn
+        return output, attn, coverage
 
 
 class TransformerDecoder(DecoderBase):
@@ -225,8 +225,8 @@ class TransformerDecoder(DecoderBase):
                                       max_len=state["src_max_len"]).unsqueeze(1)
 
         # node_pad_mask = None # use node_pad_mask will slightly improve performance
-        node_pad_mask = ~sequence_mask(state["lengths_node"],
-                                      max_len=state["node_max_len"]).unsqueeze(1)
+        # node_pad_mask = ~sequence_mask(state["lengths_node"],
+        #                               max_len=state["node_max_len"]).unsqueeze(1)
         
         
         tgt_pad_mask = tgt_pad_mask.unsqueeze(1)  # [B, 1, T_tgt]
@@ -234,18 +234,18 @@ class TransformerDecoder(DecoderBase):
         new_layer_wise_coverage = []
         representations = []
         std_attentions = []
-        gnn_attentions=[]
+        # gnn_attentions=[]
         for i, layer in enumerate(self.layer):
             layer_cache = state["cache"]["layer_{}".format(i)] \
                 if step is not None else None
             mem_bank = memory_bank[i] if isinstance(memory_bank, list) else memory_bank
-            output, attn, coverage,attn_of_gnn = layer(
+            output, attn, coverage = layer(
                 output,
                 mem_bank,
                 src_pad_mask,
                 tgt_pad_mask,
-                gnn=gnn,
-                node_pad_mask=node_pad_mask,
+                # gnn=gnn,
+                node_pad_mask=None,
                 layer_cache=layer_cache,
                 step=step,
                 coverage=None if layer_wise_coverage is None
@@ -254,12 +254,12 @@ class TransformerDecoder(DecoderBase):
             representations.append(output)
             std_attentions.append(attn)
             new_layer_wise_coverage.append(coverage)
-            if self.use_gnn_attn:
-                gnn_attentions.append(attn_of_gnn)
+            # if self.use_gnn_attn:
+            #     gnn_attentions.append(attn_of_gnn)
 
         attns = dict()
         attns["std"] = std_attentions[-1]
-        attns['gnn'] = gnn_attentions
+        # attns['gnn'] = gnn_attentions
         attns["coverage"] = None
         if self._coverage:
             attns["coverage"] = new_layer_wise_coverage
@@ -274,6 +274,6 @@ class TransformerDecoder(DecoderBase):
             layer_cache["memory_values"] = None
             layer_cache["self_keys"] = None
             layer_cache["self_values"] = None
-            layer_cache["gnn_keys"] = None
-            layer_cache["gnn_values"] = None
+            # layer_cache["gnn_keys"] = None
+            # layer_cache["gnn_values"] = None
             state["cache"]["layer_{}".format(i)] = layer_cache

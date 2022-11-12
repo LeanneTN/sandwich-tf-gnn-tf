@@ -115,8 +115,8 @@ class CCSGModel(object):
         self.network.train()
         bsz=ex['batch_size']
         data=ex['data']
-        (vec_type, vec_token, vec_src, vec_tgt, vec_attrs, vec_MASK), adjacency_m, (
-            lengths_type, lengths_token, lengths_src, lengths_tgt, lengths_node
+        (vec_src, vec_tgt, vec_MASK), adjacency_m, (
+            lengths_src, lengths_tgt,
         ), (src_vocabs, src_map, alignments)=data
 
 
